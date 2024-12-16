@@ -12,4 +12,5 @@ object Elaborate extends App {
   circt.stage.ChiselStage.emitSystemVerilogFile(new alu.Alu(), args, firtoolOptions)
   circt.stage.ChiselStage.emitSystemVerilogFile(new pc.ProgramCounter(8, 8), args, firtoolOptions)
   circt.stage.ChiselStage.emitSystemVerilogFile(new lsu.MemLoadStoreUnit(), args, firtoolOptions)
+  circt.stage.ChiselStage.emitSystemVerilogFile(new registers.RegisterFiles(), args, firtoolOptions)
 }
