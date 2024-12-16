@@ -33,7 +33,7 @@ class ProgramCounter(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) extends Modul
   when(io.enable) {
     when(io.core_state === StateCode.EXECUTE) {
       when(io.decoded_pc_mux) {
-        when((nzp & io.decoded_nzp) === 0.U) {
+        when((nzp & io.decoded_nzp) =/= 0.U) {
           // On BRnzp instruction, branch to immediate if NZP case matches previous CMP
           next_pc := io.decoded_immediate
         }.otherwise {
