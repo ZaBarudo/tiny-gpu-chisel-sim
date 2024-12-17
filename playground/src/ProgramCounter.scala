@@ -2,7 +2,7 @@ package pc
 
 import chisel3._
 import chisel3.util._
-import statecode.StateCode
+import statecode.CoreState
 import scala.reflect.internal.Reporter.INFO
 // PROGRAM COUNTER
 // > Calculates the next PC for each thread to update to (but currently we assume all threads
@@ -14,7 +14,7 @@ class ProgramCounter(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) extends Modul
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
-    val core_state = Input(StateCode())
+    val core_state = Input(CoreState())
 
     val decoded_nzp              = Input(UInt(2.W))
     val decoded_immediate        = Input(UInt(DataMemWidth.W))
@@ -31,7 +31,7 @@ class ProgramCounter(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) extends Modul
   val next_pc = RegInit(0.U(MemAddrWidth.W))
 
   when(io.enable) {
-    when(io.core_state === StateCode.EXECUTE) {
+    when(io.core_state === CoreState.EXECUTE) {
       when(io.decoded_pc_mux) {
         when((nzp & io.decoded_nzp) =/= 0.U) {
           // On BRnzp instruction, branch to immediate if NZP case matches previous CMP
@@ -47,7 +47,7 @@ class ProgramCounter(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) extends Modul
     }
 
     // Store NZP when core_state = UPDATE
-    when(io.core_state === StateCode.UPDATE) {
+    when(io.core_state === CoreState.UPDATE) {
       when(io.decoded_nzp_write_enable) {
         nzp := io.alu_out(2, 0)
       }

@@ -2,7 +2,7 @@ package lsu
 
 import chisel3._
 import chisel3.util._
-import statecode.StateCode
+import statecode.CoreState
 
 object LSUState extends ChiselEnum {
   val IDLE, REQUESTING, WAITING, DONE = Value
@@ -12,7 +12,7 @@ class MemLoadStoreUnit extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
-    val core_state = Input(StateCode())
+    val core_state = Input(CoreState())
 
     val decoded_mem_read_enable  = Input(Bool())
     val decoded_mem_write_enable = Input(Bool())
@@ -49,7 +49,7 @@ class MemLoadStoreUnit extends Module {
     when(io.decoded_mem_read_enable) {
       switch(io.lsu_state) {
         is(LSUState.IDLE) {
-          when(io.core_state === StateCode.REQUEST) {
+          when(io.core_state === CoreState.REQUEST) {
             lsu_state := LSUState.REQUESTING
           }
         }
@@ -66,7 +66,7 @@ class MemLoadStoreUnit extends Module {
           }
         }
         is(LSUState.DONE) {
-          when(io.core_state === StateCode.UPDATE) {
+          when(io.core_state === CoreState.UPDATE) {
             lsu_state := LSUState.IDLE
           }
         }
@@ -77,7 +77,7 @@ class MemLoadStoreUnit extends Module {
     when(io.decoded_mem_write_enable) {
       switch(io.lsu_state) {
         is(LSUState.IDLE) {
-          when(io.core_state === StateCode.REQUEST) {
+          when(io.core_state === CoreState.REQUEST) {
             lsu_state := LSUState.REQUESTING
           }
         }
@@ -94,7 +94,7 @@ class MemLoadStoreUnit extends Module {
           }
         }
         is(LSUState.DONE) {
-          when(io.core_state === StateCode.UPDATE) {
+          when(io.core_state === CoreState.UPDATE) {
             lsu_state := LSUState.IDLE
           }
         }

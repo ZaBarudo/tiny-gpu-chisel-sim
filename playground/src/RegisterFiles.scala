@@ -2,7 +2,7 @@ package registers
 
 import chisel3._
 import chisel3.util._
-import statecode.StateCode
+import statecode.CoreState
 
 object RegInputOp extends ChiselEnum {
   val ARITHMETIC = Value("b00".U)
@@ -18,7 +18,7 @@ class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8
     val block_id = Input(UInt(8.W))
 
     // State
-    val core_state = Input(StateCode())
+    val core_state = Input(CoreState())
 
     // Instruction Signals
     val decoded_rd_address = Input(UInt(4.W))
@@ -58,10 +58,10 @@ class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8
     registers(13) := io.block_id
 
     // Fill rs/rt when core_state = REQUEST
-    when(io.core_state === StateCode.REQUEST) {
+    when(io.core_state === CoreState.REQUEST) {
       rs := registers(io.decoded_rs_address)
       rt := registers(io.decoded_rt_address)
-    }.elsewhen(io.core_state === StateCode.UPDATE) { // Store rd when core_state = UPDATE
+    }.elsewhen(io.core_state === CoreState.UPDATE) { // Store rd when core_state = UPDATE
       // Only allow writing to R0 - R12
       when(io.decoded_reg_write_enable && io.decoded_rd_address < 13.U) {
         switch(io.decoded_reg_input_mux) {

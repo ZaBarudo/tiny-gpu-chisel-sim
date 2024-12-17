@@ -2,7 +2,7 @@ package statecode
 
 import chisel3._
 
-object StateCode extends ChiselEnum {
+object CoreState extends ChiselEnum {
   val IDLE    = Value("b000".U)
   val FETCH   = Value("b001".U)
   val DECODE  = Value("b010".U)

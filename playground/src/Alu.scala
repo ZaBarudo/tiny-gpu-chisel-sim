@@ -2,7 +2,7 @@ package alu
 
 import chisel3._
 import chisel3.util._
-import statecode.StateCode
+import statecode.CoreState
 
 object AluOpCode extends ChiselEnum {
   val ADD, SUB, MUL, DIV = Value
@@ -12,7 +12,7 @@ class Alu extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
-    val core_state = Input(StateCode())
+    val core_state = Input(CoreState())
 
     val decoded_alu_arithmetic_mux = Input(AluOpCode())
     val decoded_alu_output_mux     = Input(Bool())
@@ -25,7 +25,7 @@ class Alu extends Module {
   val alu_out_reg = RegInit(0.U(8.W))
 
   when(io.enable) {
-    when(io.core_state === StateCode.EXECUTE) {
+    when(io.core_state === CoreState.EXECUTE) {
       when(io.decoded_alu_output_mux) {
         // Set values to compare with NZP register in alu_out[2:0]
         val gt = io.rs > io.rt
