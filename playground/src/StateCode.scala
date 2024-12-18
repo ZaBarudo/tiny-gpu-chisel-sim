@@ -12,3 +12,13 @@ object CoreState extends ChiselEnum {
   val UPDATE  = Value("b110".U)
   val DONE    = Value("b111".U)
 }
+
+object AluOpCode extends ChiselEnum {
+  val ADD, SUB, MUL, DIV = Value
+}
+
+object RegInputOp extends ChiselEnum {
+  val ARITHMETIC = Value("b00".U)
+  val MEMORY     = Value("b01".U)
+  val CONSTANT   = Value("b10".U)
+}

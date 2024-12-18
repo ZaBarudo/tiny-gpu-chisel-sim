@@ -4,6 +4,8 @@ import chisel3._
 import chisel3.util._
 
 import statecode.CoreState
+import statecode.AluOpCode
+import statecode.RegInputOp
 
 object DecoderState extends ChiselEnum {
   val NOP   = Value("b0000".U)
@@ -32,14 +34,14 @@ class Decoder extends Module {
     val decoded_immediate  = Output(UInt(8.W))
 
     // Control signals
-    val decoded_reg_write_enable   = Output(Bool())    // Enable writing to a register
-    val decoded_mem_read_enable    = Output(Bool())    // Enable reading from memory
-    val decoded_mem_write_enable   = Output(Bool())    // Enable writing to memory
-    val decoded_nzp_write_enable   = Output(Bool())    // Enable writing to NZP register
-    val decoded_reg_input_mux      = Output(UInt(2.W)) // Select input to register
-    val decoded_alu_arithmetic_mux = Output(UInt(2.W)) // Select arithmetic operation
-    val decoded_alu_output_mux     = Output(Bool())    // Select operation in ALU
-    val decoded_pc_mux             = Output(Bool())    // Select source of next PC
+    val decoded_reg_write_enable   = Output(Bool())       // Enable writing to a register
+    val decoded_mem_read_enable    = Output(Bool())       // Enable reading from memory
+    val decoded_mem_write_enable   = Output(Bool())       // Enable writing to memory
+    val decoded_nzp_write_enable   = Output(Bool())       // Enable writing to NZP register
+    val decoded_reg_input_mux      = Output(RegInputOp()) // Select input to register
+    val decoded_alu_arithmetic_mux = Output(AluOpCode())  // Select arithmetic operation
+    val decoded_alu_output_mux     = Output(Bool())       // Select operation in ALU
+    val decoded_pc_mux             = Output(Bool())       // Select source of next PC
 
     // Return (finished executing thread)
     val decoded_ret = Output(Bool())
@@ -54,8 +56,8 @@ class Decoder extends Module {
   val decoded_mem_read_enable    = RegInit(false.B)
   val decoded_mem_write_enable   = RegInit(false.B)
   val decoded_nzp_write_enable   = RegInit(false.B)
-  val decoded_reg_input_mux      = RegInit(0.U(2.W))
-  val decoded_alu_arithmetic_mux = RegInit(0.U(2.W))
+  val decoded_reg_input_mux      = RegInit(RegInputOp.ARITHMETIC)
+  val decoded_alu_arithmetic_mux = RegInit(AluOpCode.ADD)
   val decoded_alu_output_mux     = RegInit(false.B)
   val decoded_pc_mux             = RegInit(false.B)
   val decoded_ret                = RegInit(false.B)
@@ -74,8 +76,8 @@ class Decoder extends Module {
       decoded_mem_read_enable    := false.B
       decoded_mem_write_enable   := false.B
       decoded_nzp_write_enable   := false.B
-      decoded_reg_input_mux      := 0.U(2.W)
-      decoded_alu_arithmetic_mux := 0.U(2.W)
+      decoded_reg_input_mux      := RegInputOp.ARITHMETIC
+      decoded_alu_arithmetic_mux := AluOpCode.ADD
       decoded_alu_output_mux     := false.B
       decoded_pc_mux             := false.B
       decoded_ret                := false.B
@@ -95,27 +97,27 @@ class Decoder extends Module {
         }
         is(DecoderState.ADD) {
           decoded_reg_write_enable   := true.B
-          decoded_reg_input_mux      := "b00".U
-          decoded_alu_arithmetic_mux := "b00".U
+          decoded_reg_input_mux      := RegInputOp.ARITHMETIC
+          decoded_alu_arithmetic_mux := AluOpCode.ADD
         }
         is(DecoderState.SUB) {
           decoded_reg_write_enable   := true.B
-          decoded_reg_input_mux      := "b00".U
-          decoded_alu_arithmetic_mux := "b01".U
+          decoded_reg_input_mux      := RegInputOp.ARITHMETIC
+          decoded_alu_arithmetic_mux := AluOpCode.SUB
         }
         is(DecoderState.MUL) {
           decoded_reg_write_enable   := true.B
-          decoded_reg_input_mux      := "b00".U
-          decoded_alu_arithmetic_mux := "b10".U
+          decoded_reg_input_mux      := RegInputOp.ARITHMETIC
+          decoded_alu_arithmetic_mux := AluOpCode.MUL
         }
         is(DecoderState.DIV) {
           decoded_reg_write_enable   := true.B
-          decoded_reg_input_mux      := "b00".U
-          decoded_alu_arithmetic_mux := "b11".U
+          decoded_reg_input_mux      := RegInputOp.ARITHMETIC
+          decoded_alu_arithmetic_mux := AluOpCode.DIV
         }
         is(DecoderState.LDR) {
           decoded_reg_write_enable := true.B
-          decoded_reg_input_mux    := "b01".U
+          decoded_reg_input_mux    := RegInputOp.MEMORY
           decoded_mem_read_enable  := true.B
         }
         is(DecoderState.STR) {
@@ -123,7 +125,7 @@ class Decoder extends Module {
         }
         is(DecoderState.CONST) {
           decoded_reg_write_enable := true.B
-          decoded_reg_input_mux    := "b10".U
+          decoded_reg_input_mux    := RegInputOp.CONSTANT
         }
         is(DecoderState.RET) {
           decoded_ret := true.B

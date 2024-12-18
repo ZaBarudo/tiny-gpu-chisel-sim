@@ -3,12 +3,7 @@ package registers
 import chisel3._
 import chisel3.util._
 import statecode.CoreState
-
-object RegInputOp extends ChiselEnum {
-  val ARITHMETIC = Value("b00".U)
-  val MEMORY     = Value("b01".U)
-  val CONSTANT   = Value("b10".U)
-}
+import statecode.RegInputOp
 
 class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8) extends Module {
   val io = IO(new Bundle {

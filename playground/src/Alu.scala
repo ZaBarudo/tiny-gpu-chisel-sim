@@ -3,10 +3,7 @@ package alu
 import chisel3._
 import chisel3.util._
 import statecode.CoreState
-
-object AluOpCode extends ChiselEnum {
-  val ADD, SUB, MUL, DIV = Value
-}
+import statecode.AluOpCode
 
 class Alu extends Module {
   val io = IO(new Bundle {
