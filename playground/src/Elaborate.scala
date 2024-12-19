@@ -18,4 +18,6 @@ object Elaborate extends App {
   circt.stage.ChiselStage.emitSystemVerilogFile(new decoder.Decoder(), args, firtoolOptions)
   circt.stage.ChiselStage.emitSystemVerilogFile(new core.Core(), args, firtoolOptions)
   circt.stage.ChiselStage.emitSystemVerilogFile(new dispatch.Dispatch(), args, firtoolOptions)
+  circt.stage.ChiselStage.emitSystemVerilogFile(new dcr.DeviceControlRegister(), args, firtoolOptions)
+//   circt.stage.ChiselStage.emitSystemVerilogFile(new controller.Controller(), args, firtoolOptions)
 }
