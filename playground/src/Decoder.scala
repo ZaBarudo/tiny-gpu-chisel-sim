@@ -34,14 +34,17 @@ class Decoder extends Module {
     val decoded_immediate  = Output(UInt(8.W))
 
     // Control signals
-    val decoded_reg_write_enable   = Output(Bool())       // Enable writing to a register
-    val decoded_mem_read_enable    = Output(Bool())       // Enable reading from memory
-    val decoded_mem_write_enable   = Output(Bool())       // Enable writing to memory
-    val decoded_nzp_write_enable   = Output(Bool())       // Enable writing to NZP register
-    val decoded_reg_input_mux      = Output(RegInputOp()) // Select input to register
-    val decoded_alu_arithmetic_mux = Output(AluOpCode())  // Select arithmetic operation
-    val decoded_alu_output_mux     = Output(Bool())       // Select operation in ALU
-    val decoded_pc_mux             = Output(Bool())       // Select source of next PC
+    val decoded_reg_write_enable = Output(Bool())       // Enable writing to a register
+    val decoded_mem_read_enable  = Output(Bool())       // Enable reading from memory
+    val decoded_mem_write_enable = Output(Bool())       // Enable writing to memory
+    val decoded_nzp_write_enable = Output(Bool())       // Enable writing to NZP register
+    val decoded_reg_input_mux    = Output(RegInputOp()) // Select input to register
+
+    val decoded_alu_op = new Bundle {
+      val arithmetic_mux = Output(AluOpCode()) // Select arithmetic operation
+      val output_mux     = Output(Bool())      // Select operation in ALU
+    }
+    val decoded_pc_mux = Output(Bool()) // Select source of next PC
 
     // Return (finished executing thread)
     val decoded_ret = Output(Bool())
@@ -134,18 +137,18 @@ class Decoder extends Module {
     }
   }
 
-  io.decoded_rd_address         := decoded_rd_address
-  io.decoded_rs_address         := decoded_rs_address
-  io.decoded_rt_address         := decoded_rt_address
-  io.decoded_nzp                := decoded_nzp
-  io.decoded_immediate          := decoded_immediate
-  io.decoded_reg_write_enable   := decoded_reg_write_enable
-  io.decoded_mem_read_enable    := decoded_mem_read_enable
-  io.decoded_mem_write_enable   := decoded_mem_write_enable
-  io.decoded_nzp_write_enable   := decoded_nzp_write_enable
-  io.decoded_reg_input_mux      := decoded_reg_input_mux
-  io.decoded_alu_arithmetic_mux := decoded_alu_arithmetic_mux
-  io.decoded_alu_output_mux     := decoded_alu_output_mux
-  io.decoded_pc_mux             := decoded_pc_mux
-  io.decoded_ret                := decoded_ret
+  io.decoded_rd_address            := decoded_rd_address
+  io.decoded_rs_address            := decoded_rs_address
+  io.decoded_rt_address            := decoded_rt_address
+  io.decoded_nzp                   := decoded_nzp
+  io.decoded_immediate             := decoded_immediate
+  io.decoded_reg_write_enable      := decoded_reg_write_enable
+  io.decoded_mem_read_enable       := decoded_mem_read_enable
+  io.decoded_mem_write_enable      := decoded_mem_write_enable
+  io.decoded_nzp_write_enable      := decoded_nzp_write_enable
+  io.decoded_reg_input_mux         := decoded_reg_input_mux
+  io.decoded_alu_op.arithmetic_mux := decoded_alu_arithmetic_mux
+  io.decoded_alu_op.output_mux     := decoded_alu_output_mux
+  io.decoded_pc_mux                := decoded_pc_mux
+  io.decoded_ret                   := decoded_ret
 }

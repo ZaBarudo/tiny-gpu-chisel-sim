@@ -82,21 +82,18 @@ class Core(
       val enable = (i.U < io.thread_count)
 
       // alu inputs connections (6/6)
-      alu.io.enable                     := enable
-      alu.io.core_state                 := scheduler.io.core_state
-      alu.io.decoded_alu_arithmetic_mux := decoder.io.decoded_alu_arithmetic_mux
-      alu.io.decoded_alu_output_mux     := decoder.io.decoded_alu_output_mux
-      alu.io.rs                         := regfile.io.rs(i)
-      alu.io.rt                         := regfile.io.rt(i)
+      alu.io.enable     := enable
+      alu.io.core_state := scheduler.io.core_state
+      alu.io <> regfile.io
+      alu.io <> decoder.io
 
       // lsu inputs connections (7/7)
       lsu.io.enable                   := enable
       lsu.io.core_state               := scheduler.io.core_state
       lsu.io.decoded_mem_read_enable  := decoder.io.decoded_mem_read_enable
       lsu.io.decoded_mem_write_enable := decoder.io.decoded_mem_write_enable
-      lsu.io.rs                       := regfile.io.rs(i)
-      lsu.io.rt                       := regfile.io.rt(i)
       lsu.io.mem_read_data            := io.data_mem_read_data(i)
+      lsu.io <> regfile.io
 
       // regfile inputs connections (11/11)
       regfile.io.enable                   := enable

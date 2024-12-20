@@ -18,8 +18,10 @@ class MemLoadStoreUnit extends Module {
     val decoded_mem_write_enable = Input(Bool())
 
     // Registers
-    val rs = Input(UInt(8.W))
-    val rt = Input(UInt(8.W))
+    val reg_out = new Bundle {
+      val rs = Input(UInt(8.W))
+      val rt = Input(UInt(8.W))
+    }
 
     val mem_read_data           = Input(UInt(8.W))
     val mem_read_address_sender = new DecoupledIO(UInt(8.W))
@@ -53,7 +55,7 @@ class MemLoadStoreUnit extends Module {
         }
         is(LSUState.REQUESTING) {
           mem_read_valid   := true.B
-          mem_read_address := io.rs
+          mem_read_address := io.reg_out.rs
           lsu_state        := LSUState.WAITING
         }
         is(LSUState.WAITING) {
@@ -81,8 +83,8 @@ class MemLoadStoreUnit extends Module {
         }
         is(LSUState.REQUESTING) {
           mem_write_valid   := true.B
-          mem_write_address := io.rs
-          mem_write_data    := io.rt
+          mem_write_address := io.reg_out.rs
+          mem_write_data    := io.reg_out.rt
           lsu_state         := LSUState.WAITING
         }
         is(LSUState.WAITING) {

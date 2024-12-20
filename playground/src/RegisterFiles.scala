@@ -30,8 +30,10 @@ class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8
     val lsu_out = Input(UInt(DataBits.W))
 
     // Register File Outputs
-    val rs = Output(UInt(DataBits.W))
-    val rt = Output(UInt(DataBits.W))
+    val reg_out = new Bundle {
+      val rs = Output(UInt(DataBits.W))
+      val rt = Output(UInt(DataBits.W))
+    }
   })
 
   def InitValByIndex(index: Int): UInt = {
@@ -74,6 +76,6 @@ class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8
     }
   }
 
-  io.rs := rs
-  io.rt := rt
+  io.reg_out.rs := rs
+  io.reg_out.rt := rt
 }
