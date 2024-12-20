@@ -18,10 +18,8 @@ class Fetcher(ProgramMemAddrBits: Int = 8, ProgramMemDataBits: Int = 16) extends
     val current_pc = Input(UInt(8.W))
 
     // Program Memory
-    val mem_read_valid   = Output(Bool())
-    val mem_read_address = Output(UInt(ProgramMemAddrBits.W))
-    val mem_read_ready   = Input(Bool())
-    val mem_read_data    = Input(UInt(ProgramMemDataBits.W))
+    val mem_read_address_sender = new DecoupledIO(UInt(ProgramMemAddrBits.W))
+    val mem_read_data           = Input(UInt(ProgramMemDataBits.W))
 
     val fetcher_state = Output(FetcherState())
     val instruction   = Output(UInt(ProgramMemDataBits.W))
@@ -42,7 +40,7 @@ class Fetcher(ProgramMemAddrBits: Int = 8, ProgramMemDataBits: Int = 16) extends
         }
       }
       is(FetcherState.FETCHING) {
-        when(io.mem_read_ready) {
+        when(io.mem_read_address_sender.ready) {
           fetcher_state  := FetcherState.FETCHED
           instruction    := io.mem_read_data
           mem_read_valid := false.B
@@ -56,8 +54,8 @@ class Fetcher(ProgramMemAddrBits: Int = 8, ProgramMemDataBits: Int = 16) extends
     }
   }
 
-  io.fetcher_state    := fetcher_state
-  io.mem_read_valid   := mem_read_valid
-  io.mem_read_address := mem_read_address
-  io.instruction      := instruction
+  io.fetcher_state                 := fetcher_state
+  io.mem_read_address_sender.valid := mem_read_valid
+  io.mem_read_address_sender.bits  := mem_read_address
+  io.instruction                   := instruction
 }

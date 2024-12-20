@@ -36,31 +36,30 @@ class Core(
     val thread_count = Input(UInt(log2Ceil(ThreadsPerBlock).W))
 
     // Program Memory
-    val program_mem_read_valid   = Output(Bool())
-    val program_mem_read_address = Output(UInt(ProgramMemAddrBits.W))
-    val program_mem_read_ready   = Input(Bool())
-    val program_mem_read_data    = Input(UInt(ProgramMemDataBits.W))
+    val program_mem_read_address_sender = new DecoupledIO(UInt(ProgramMemAddrBits.W))
+    val program_mem_read_data           = Input(UInt(ProgramMemDataBits.W))
 
     // Data Memory
-    val data_mem_read_valid    = Output(Vec(ThreadsPerBlock, Bool()))
-    val data_mem_read_address  = Output(Vec(ThreadsPerBlock, UInt(DataMemAddrBits.W)))
-    val data_mem_read_ready    = Input(UInt(ThreadsPerBlock.W))
-    val data_mem_read_data     = Input(Vec(ThreadsPerBlock, UInt(DataMemDataBits.W)))
-    val data_mem_write_valid   = Output(Vec(ThreadsPerBlock, Bool()))
-    val data_mem_write_address = Output(Vec(ThreadsPerBlock, UInt(DataMemAddrBits.W)))
-    val data_mem_write_data    = Output(Vec(ThreadsPerBlock, UInt(DataMemDataBits.W)))
-    val data_mem_write_ready   = Input(UInt(ThreadsPerBlock.W))
+
+    val data_mem_read_data           = Input(Vec(ThreadsPerBlock, UInt(DataMemDataBits.W)))
+    val data_mem_read_address_sender = Vec(ThreadsPerBlock, new DecoupledIO(UInt(DataMemAddrBits.W)))
+    val data_mem_write_sender        = Vec(
+      ThreadsPerBlock,
+      new DecoupledIO(new Bundle {
+        val address = UInt(DataMemAddrBits.W)
+        val data    = UInt(DataMemDataBits.W)
+      })
+    )
   })
 
   val fetcher   = Module(new Fetcher(ProgramMemAddrBits, ProgramMemDataBits))
   val decoder   = Module(new Decoder())
   val scheduler = Module(new Scheduler(ThreadsPerBlock))
 
-  // Fetcher inputs connections (4/4)
-  fetcher.io.core_state     := scheduler.io.core_state
-  fetcher.io.current_pc     := scheduler.io.current_pc
-  fetcher.io.mem_read_ready := io.program_mem_read_ready
-  fetcher.io.mem_read_data  := io.program_mem_read_data
+  // Fetcher inputs connections (3/3)
+  fetcher.io.core_state    := scheduler.io.core_state
+  fetcher.io.current_pc    := scheduler.io.current_pc
+  fetcher.io.mem_read_data := io.program_mem_read_data
 
   // Decoder inputs connections (2/2)
   decoder.io.core_state  := scheduler.io.core_state
@@ -90,16 +89,14 @@ class Core(
       alu.io.rs                         := regfile.io.rs(i)
       alu.io.rt                         := regfile.io.rt(i)
 
-      // lsu inputs connections (9/9)
+      // lsu inputs connections (7/7)
       lsu.io.enable                   := enable
       lsu.io.core_state               := scheduler.io.core_state
       lsu.io.decoded_mem_read_enable  := decoder.io.decoded_mem_read_enable
       lsu.io.decoded_mem_write_enable := decoder.io.decoded_mem_write_enable
       lsu.io.rs                       := regfile.io.rs(i)
       lsu.io.rt                       := regfile.io.rt(i)
-      lsu.io.mem_read_ready           := io.data_mem_read_ready(i)
       lsu.io.mem_read_data            := io.data_mem_read_data(i)
-      lsu.io.mem_write_ready          := io.data_mem_write_ready(i)
 
       // regfile inputs connections (11/11)
       regfile.io.enable                   := enable
@@ -129,17 +126,13 @@ class Core(
       scheduler.io.next_pc(i)   := pc.io.next_pc
 
       // Connect to core module outputs (5/8)
-      io.data_mem_read_valid(i)    := lsu.io.mem_read_valid
-      io.data_mem_read_address(i)  := lsu.io.mem_read_address
-      io.data_mem_write_valid(i)   := lsu.io.mem_write_valid
-      io.data_mem_write_address(i) := lsu.io.mem_write_address
-      io.data_mem_write_data(i)    := lsu.io.mem_write_data
+      io.data_mem_read_address_sender(i) <> lsu.io.mem_read_address_sender
+      io.data_mem_write_sender(i) <> lsu.io.mem_write_sender
 
       (alu, lsu, regfile, pc)
     })
 
   // Connect to module outputs (8/8)
-  io.done                     := scheduler.io.done
-  io.program_mem_read_valid   := fetcher.io.mem_read_valid
-  io.program_mem_read_address := fetcher.io.mem_read_address
+  io.done := scheduler.io.done
+  io.program_mem_read_address_sender <> fetcher.io.mem_read_address_sender
 }

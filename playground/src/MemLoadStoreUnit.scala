@@ -21,15 +21,13 @@ class MemLoadStoreUnit extends Module {
     val rs = Input(UInt(8.W))
     val rt = Input(UInt(8.W))
 
-    val mem_read_valid   = Output(Bool())
-    val mem_read_address = Output(UInt(8.W))
-    val mem_read_ready   = Input(Bool())
-    val mem_read_data    = Input(UInt(8.W))
+    val mem_read_data           = Input(UInt(8.W))
+    val mem_read_address_sender = new DecoupledIO(UInt(8.W))
 
-    val mem_write_valid   = Output(Bool())
-    val mem_write_address = Output(UInt(8.W))
-    val mem_write_data    = Output(UInt(8.W))
-    val mem_write_ready   = Input(Bool())
+    val mem_write_sender = new DecoupledIO(new Bundle {
+      val address = UInt(8.W)
+      val data    = UInt(8.W)
+    })
 
     // LSU Outputs
     val lsu_state = Output(LSUState())
@@ -59,7 +57,7 @@ class MemLoadStoreUnit extends Module {
           lsu_state        := LSUState.WAITING
         }
         is(LSUState.WAITING) {
-          when(io.mem_read_ready) {
+          when(io.mem_read_address_sender.ready) {
             mem_read_valid := false.B
             lsu_out        := io.mem_read_data
             lsu_state      := LSUState.DONE
@@ -88,7 +86,7 @@ class MemLoadStoreUnit extends Module {
           lsu_state         := LSUState.WAITING
         }
         is(LSUState.WAITING) {
-          when(io.mem_write_ready) {
+          when(io.mem_write_sender.ready) {
             mem_write_valid := false.B
             lsu_state       := LSUState.DONE
           }
@@ -102,11 +100,11 @@ class MemLoadStoreUnit extends Module {
     }
   }
 
-  io.lsu_state         := lsu_state
-  io.lsu_out           := lsu_out
-  io.mem_read_valid    := mem_read_valid
-  io.mem_read_address  := mem_read_address
-  io.mem_write_valid   := mem_write_valid
-  io.mem_write_address := mem_write_address
-  io.mem_write_data    := mem_write_data
+  io.lsu_state                     := lsu_state
+  io.lsu_out                       := lsu_out
+  io.mem_read_address_sender.valid := mem_read_valid
+  io.mem_read_address_sender.bits  := mem_read_address
+  io.mem_write_sender.valid        := mem_write_valid
+  io.mem_write_sender.bits.address := mem_write_address
+  io.mem_write_sender.bits.data    := mem_write_data
 }
