@@ -27,16 +27,20 @@ class Decoder extends Module {
     val instruction = Input(UInt(16.W))
 
     // Instruction signals
-    val decoded_rd_address = Output(UInt(4.W))
-    val decoded_rs_address = Output(UInt(4.W))
-    val decoded_rt_address = Output(UInt(4.W))
-    val decoded_nzp        = Output(UInt(3.W))
-    val decoded_immediate  = Output(UInt(8.W))
+    val decoded_reg_address = new Bundle {
+      val rd = Output(UInt(4.W))
+      val rs = Output(UInt(4.W))
+      val rt = Output(UInt(4.W))
+    }
+    val decoded_nzp         = Output(UInt(3.W))
+    val decoded_immediate   = Output(UInt(8.W))
 
     // Control signals
+    val mem_rw_enable            = new Bundle {
+      val read_enable  = Output(Bool()) // Enable reading from memory
+      val write_enable = Output(Bool()) // Enable writing to memory
+    }
     val decoded_reg_write_enable = Output(Bool())       // Enable writing to a register
-    val decoded_mem_read_enable  = Output(Bool())       // Enable reading from memory
-    val decoded_mem_write_enable = Output(Bool())       // Enable writing to memory
     val decoded_nzp_write_enable = Output(Bool())       // Enable writing to NZP register
     val decoded_reg_input_mux    = Output(RegInputOp()) // Select input to register
 
@@ -137,14 +141,14 @@ class Decoder extends Module {
     }
   }
 
-  io.decoded_rd_address            := decoded_rd_address
-  io.decoded_rs_address            := decoded_rs_address
-  io.decoded_rt_address            := decoded_rt_address
+  io.decoded_reg_address.rd        := decoded_rd_address
+  io.decoded_reg_address.rs        := decoded_rs_address
+  io.decoded_reg_address.rt        := decoded_rt_address
   io.decoded_nzp                   := decoded_nzp
   io.decoded_immediate             := decoded_immediate
   io.decoded_reg_write_enable      := decoded_reg_write_enable
-  io.decoded_mem_read_enable       := decoded_mem_read_enable
-  io.decoded_mem_write_enable      := decoded_mem_write_enable
+  io.mem_rw_enable.read_enable     := decoded_mem_read_enable
+  io.mem_rw_enable.write_enable    := decoded_mem_write_enable
   io.decoded_nzp_write_enable      := decoded_nzp_write_enable
   io.decoded_reg_input_mux         := decoded_reg_input_mux
   io.decoded_alu_op.arithmetic_mux := decoded_alu_arithmetic_mux

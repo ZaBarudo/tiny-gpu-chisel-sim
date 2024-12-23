@@ -14,11 +14,14 @@ class MemLoadStoreUnit extends Module {
 
     val core_state = Input(CoreState())
 
-    val decoded_mem_read_enable  = Input(Bool())
-    val decoded_mem_write_enable = Input(Bool())
+    // Decoder outputs
+    val mem_rw_enable = new Bundle {
+      val read_enable  = Input(Bool()) // Enable reading from memory
+      val write_enable = Input(Bool()) // Enable writing to memory
+    }
 
     // Registers
-    val reg_out = new Bundle {
+    val reg_in = new Bundle {
       val rs = Input(UInt(8.W))
       val rt = Input(UInt(8.W))
     }
@@ -46,7 +49,7 @@ class MemLoadStoreUnit extends Module {
 
   when(io.enable) {
     // If memory read enable is triggered (LDR instruction)
-    when(io.decoded_mem_read_enable) {
+    when(io.mem_rw_enable.read_enable) {
       switch(io.lsu_state) {
         is(LSUState.IDLE) {
           when(io.core_state === CoreState.REQUEST) {
@@ -55,7 +58,7 @@ class MemLoadStoreUnit extends Module {
         }
         is(LSUState.REQUESTING) {
           mem_read_valid   := true.B
-          mem_read_address := io.reg_out.rs
+          mem_read_address := io.reg_in.rs
           lsu_state        := LSUState.WAITING
         }
         is(LSUState.WAITING) {
@@ -74,7 +77,7 @@ class MemLoadStoreUnit extends Module {
     }
 
     // If memory write enable is triggered (STR instruction)
-    when(io.decoded_mem_write_enable) {
+    when(io.mem_rw_enable.write_enable) {
       switch(io.lsu_state) {
         is(LSUState.IDLE) {
           when(io.core_state === CoreState.REQUEST) {
@@ -83,8 +86,8 @@ class MemLoadStoreUnit extends Module {
         }
         is(LSUState.REQUESTING) {
           mem_write_valid   := true.B
-          mem_write_address := io.reg_out.rs
-          mem_write_data    := io.reg_out.rt
+          mem_write_address := io.reg_in.rs
+          mem_write_data    := io.reg_in.rt
           lsu_state         := LSUState.WAITING
         }
         is(LSUState.WAITING) {

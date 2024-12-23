@@ -6,14 +6,28 @@ import statecode.CoreState
 import lsu.LSUState
 import fetcher.FetcherState
 
+// SCHEDULER
+// > Manages the entire control flow of a single compute core processing 1 block
+// 1. FETCH - Retrieve instruction at current program counter (PC) from program memory
+// 2. DECODE - Decode the instruction into the relevant control signals
+// 3. REQUEST - If we have an instruction that accesses memory, trigger the async memory requests from LSUs
+// 4. WAIT - Wait for all async memory requests to resolve (if applicable)
+// 5. EXECUTE - Execute computations on retrieved data from registers / memory
+// 6. UPDATE - Update register values (including NZP register) and program counter
+// > Each core has it's own scheduler where multiple threads can be processed with
+//   the same control flow at once.
+// > Technically, different instructions can branch to different PCs, requiring "branch divergence." In
+//   this minimal implementation, we assume no branch divergence (naive approach for simplicity)
 class Scheduler(ThreadsPerBlock: Int = 4) extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())
 
     // Control signals
-    val decoded_mem_read_enable  = Input(Bool())
-    val decoded_mem_write_enable = Input(Bool())
-    val decoded_ret              = Input(Bool())
+    val mem_rw_enable = new Bundle {
+      val read_enable  = Input(Bool()) // Enable reading from memory
+      val write_enable = Input(Bool()) // Enable writing to memory
+    }
+    val decoded_ret   = Input(Bool())
 
     // Memory access state
     val fetcher_state = Input(FetcherState())

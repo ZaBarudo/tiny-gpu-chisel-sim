@@ -16,9 +16,11 @@ class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8
     val core_state = Input(CoreState())
 
     // Instruction Signals
-    val decoded_rd_address = Input(UInt(4.W))
-    val decoded_rs_address = Input(UInt(4.W))
-    val decoded_rt_address = Input(UInt(4.W))
+    val decoded_reg_address = new Bundle {
+      val rd = Input(UInt(4.W))
+      val rs = Input(UInt(4.W))
+      val rt = Input(UInt(4.W))
+    }
 
     // Control Signals
     val decoded_reg_write_enable = Input(Bool())
@@ -56,20 +58,20 @@ class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8
 
     // Fill rs/rt when core_state = REQUEST
     when(io.core_state === CoreState.REQUEST) {
-      rs := registers(io.decoded_rs_address)
-      rt := registers(io.decoded_rt_address)
+      rs := registers(io.decoded_reg_address.rs)
+      rt := registers(io.decoded_reg_address.rt)
     }.elsewhen(io.core_state === CoreState.UPDATE) { // Store rd when core_state = UPDATE
       // Only allow writing to R0 - R12
-      when(io.decoded_reg_write_enable && io.decoded_rd_address < 13.U) {
+      when(io.decoded_reg_write_enable && io.decoded_reg_address.rd < 13.U) {
         switch(io.decoded_reg_input_mux) {
           is(RegInputOp.ARITHMETIC) {
-            registers(io.decoded_rd_address) := io.alu_out
+            registers(io.decoded_reg_address.rd) := io.alu_out
           }
           is(RegInputOp.MEMORY) {
-            registers(io.decoded_rd_address) := io.lsu_out
+            registers(io.decoded_reg_address.rd) := io.lsu_out
           }
           is(RegInputOp.CONSTANT) {
-            registers(io.decoded_rd_address) := io.decoded_immediate
+            registers(io.decoded_reg_address.rd) := io.decoded_immediate
           }
         }
       }

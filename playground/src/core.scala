@@ -66,11 +66,10 @@ class Core(
   decoder.io.instruction := fetcher.io.instruction
 
   // Scheduler inputs connections (5/7)
-  scheduler.io.start                    := io.start
-  scheduler.io.decoded_mem_read_enable  := decoder.io.decoded_mem_read_enable
-  scheduler.io.decoded_mem_write_enable := decoder.io.decoded_mem_write_enable
-  scheduler.io.decoded_ret              := decoder.io.decoded_ret
-  scheduler.io.fetcher_state            := fetcher.io.fetcher_state
+  scheduler.io.start         := io.start
+  scheduler.io.mem_rw_enable := decoder.io.mem_rw_enable
+  scheduler.io.decoded_ret   := decoder.io.decoded_ret
+  scheduler.io.fetcher_state := fetcher.io.fetcher_state
 
   val compute_units = Seq
     .tabulate(ThreadsPerBlock)(i => {
@@ -82,26 +81,23 @@ class Core(
       val enable = (i.U < io.thread_count)
 
       // alu inputs connections (6/6)
-      alu.io.enable     := enable
-      alu.io.core_state := scheduler.io.core_state
-      alu.io <> regfile.io
-      alu.io <> decoder.io
+      alu.io.enable         := enable
+      alu.io.core_state     := scheduler.io.core_state
+      alu.io.reg_in         := regfile.io.reg_out
+      alu.io.decoded_alu_op := decoder.io.decoded_alu_op
 
       // lsu inputs connections (7/7)
-      lsu.io.enable                   := enable
-      lsu.io.core_state               := scheduler.io.core_state
-      lsu.io.decoded_mem_read_enable  := decoder.io.decoded_mem_read_enable
-      lsu.io.decoded_mem_write_enable := decoder.io.decoded_mem_write_enable
-      lsu.io.mem_read_data            := io.data_mem_read_data(i)
-      lsu.io <> regfile.io
+      lsu.io.enable        := enable
+      lsu.io.core_state    := scheduler.io.core_state
+      lsu.io.mem_rw_enable := decoder.io.mem_rw_enable
+      lsu.io.mem_read_data := io.data_mem_read_data(i)
+      lsu.io.reg_in        := regfile.io.reg_out
 
       // regfile inputs connections (11/11)
       regfile.io.enable                   := enable
       regfile.io.block_id                 := io.block_id
       regfile.io.core_state               := scheduler.io.core_state
-      regfile.io.decoded_rd_address       := decoder.io.decoded_rd_address
-      regfile.io.decoded_rs_address       := decoder.io.decoded_rs_address
-      regfile.io.decoded_rt_address       := decoder.io.decoded_rt_address
+      regfile.io.decoded_reg_address      := decoder.io.decoded_reg_address
       regfile.io.decoded_reg_write_enable := decoder.io.decoded_reg_write_enable
       regfile.io.decoded_reg_input_mux    := decoder.io.decoded_reg_input_mux
       regfile.io.decoded_immediate        := decoder.io.decoded_immediate
@@ -110,13 +106,13 @@ class Core(
 
       // pc inputs connections (8/8)
       pc.io.enable                   := enable
-      pc.io.core_state               := scheduler.io.core_state
       pc.io.decoded_nzp              := decoder.io.decoded_nzp
       pc.io.decoded_immediate        := decoder.io.decoded_immediate
       pc.io.decoded_nzp_write_enable := decoder.io.decoded_nzp_write_enable
       pc.io.decoded_pc_mux           := decoder.io.decoded_pc_mux
       pc.io.alu_out                  := alu.io.alu_out
       pc.io.current_pc               := scheduler.io.current_pc
+      pc.io.core_state               := scheduler.io.core_state
 
       // Connect to scheduler input (7/7)
       scheduler.io.lsu_state(i) := lsu.io.lsu_state
