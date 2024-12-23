@@ -37,7 +37,7 @@ class Controller(
     )
 
     // Memory Interface (Data / Program)
-    val mem_read_sender = Vec(NumChannels, DecoupledIO(UInt(AddrBits.W)))
+    val mem_read_sender = Vec(NumChannels, new DecoupledIO(UInt(AddrBits.W)))
     val mem_read_data   = Input(Vec(NumChannels, UInt(DataBits.W)))
 
     val mem_write_sender = Vec(
@@ -60,7 +60,7 @@ class Controller(
   val consumer_read_data   = RegInit(VecInit(Seq.fill(NumConsumers)(0.U(DataBits.W))))
   val consumer_write_ready = RegInit(VecInit(Seq.fill(NumConsumers)(false.B)))
 
-  val current_consumer = RegInit(VecInit(Seq.fill(log2Ceil(NumConsumers))(0.U(NumChannels.W))))
+  val current_consumer = RegInit(VecInit(Seq.fill(NumChannels)(0.U(log2Ceil(NumConsumers).W))))
   val controller_state = RegInit(VecInit(Seq.fill(3)(ControlState.IDLE)))
 
   val channel_serving_consumer = RegInit(VecInit(Seq.fill(NumConsumers)(false.B)))
@@ -72,8 +72,8 @@ class Controller(
         is(ControlState.IDLE) {
           // While this channel is idle, cycle through consumers looking for one with a pending request
           // Once we find a pending request, pick it up with this channel and stop looking for requests
-          val read_signals  = Vec(NumConsumers, Bool())
-          val write_signals = Vec(NumConsumers, Bool())
+          val read_signals  = Wire(Vec(NumConsumers, Bool()))
+          val write_signals = Wire(Vec(NumConsumers, Bool()))
           for (j <- 0 until NumConsumers) {
             read_signals(j)  := io.consumer_read_addr_receiver(j).valid && !channel_serving_consumer(j)
             write_signals(j) := io.consumer_write_receiver(j).valid && !channel_serving_consumer(j)
@@ -108,7 +108,7 @@ class Controller(
         is(ControlState.READ_WAITING) {
           // Wait for response from memory for pending read request
           when(io.mem_read_sender(i).ready) {
-            mem_read_valid                           := false.B
+            mem_read_valid(i)                        := false.B
             consumer_read_ready(current_consumer(i)) := true.B
             consumer_read_data(current_consumer(i))  := io.mem_read_data(i)
             controller_state(i)                      := ControlState.READ_RELAYING
@@ -141,15 +141,14 @@ class Controller(
   }
 
   for (i <- 0 until NumConsumers) {
-    io.mem_read_sender(i).valid := mem_read_valid(i)
-    io.mem_read_sender(i).bits  := mem_read_address(i)
-
     io.consumer_read_addr_receiver(i).ready := consumer_read_ready(i)
     io.consumer_read_data(i)                := consumer_read_data(i)
     io.consumer_write_receiver(i).ready     := consumer_write_ready(i)
   }
 
   for (i <- 0 until NumChannels) {
+    io.mem_read_sender(i).valid         := mem_read_valid(i)
+    io.mem_read_sender(i).bits          := mem_read_address(i)
     io.mem_write_sender(i).valid        := mem_write_valid(i)
     io.mem_write_sender(i).bits.address := mem_write_address(i)
     io.mem_write_sender(i).bits.data    := mem_write_data(i)
