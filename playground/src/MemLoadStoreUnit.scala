@@ -29,7 +29,7 @@ class MemLoadStoreUnit extends Module {
     val mem_read_data           = Input(UInt(8.W))
     val mem_read_address_sender = new DecoupledIO(UInt(8.W))
 
-    val mem_write_sender = new DecoupledIO(new Bundle {
+    val mem_write_sender = DecoupledIO(new Bundle {
       val address = UInt(8.W)
       val data    = UInt(8.W)
     })
