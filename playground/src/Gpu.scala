@@ -46,58 +46,57 @@ class Gpu(
 // Control
   val thread_count = RegInit(0.U(8.W))
 
-  // Compute Core State
-  val core_start        = RegInit(0.U(NumCores.W))
-  val core_reset        = RegInit(0.U(NumCores.W))
-  val core_done         = RegInit(0.U(NumCores.W))
-  val core_block_id     = RegInit(VecInit(Seq.fill(NumCores)(0.U(8.W))))
-  val core_thread_count = RegInit(VecInit(Seq.fill(NumCores)(0.U(log2Ceil(ThreadsPerBlock).W))))
-
   // LSU <> Data Memory Controller Channels
-  val NumLSUs = NumCores * ThreadsPerBlock
-//   val lsu_mem_read_data           = Reg(VecInit(Seq.fill(NumLSUs)(UInt(DataMemDataBits.W))))
-//   val lsu_mem_read_address_sender = Reg(VecInit(Seq.fill(NumLSUs)(new DecoupledIO(UInt(DataMemAddrBits.W)))))
-//   val lsu_mem_write_sender        = Reg(VecInit(Seq.fill(NumLSUs)(DecoupledIO(new Bundle {
-//     val address = UInt(DataMemAddrBits.W)
-//     val data    = UInt(DataMemDataBits.W)
-//   }))))
-
-  // Fetcher <> Program Memory Controller Channels
+  val NumLSUs     = NumCores * ThreadsPerBlock
   // Fetcher <> Program Memory Controller Channels
   val NumFetchers = NumCores
 
-  // Device Control Register
+  // Device Control Register inputs (2/2)
   val dcr = Module(new DeviceControlRegister())
-//   dcr.io.device_control_write_enable := io.device_control_write_enable
-//   dcr.io.device_control_data         := io.device_control_data
-//   dcr.io.thread_count                := thread_count
+  dcr.io.device_control_write_enable := io.device_control_write_enable
+  dcr.io.device_control_data         := io.device_control_data
+  thread_count                       := dcr.io.thread_count
 
   // Data Memory Controller
   val data_memory_controller = Module(new Controller(DataMemAddrBits, DataMemDataBits, NumLSUs, DataMemNumChannels))
+  data_memory_controller.io.mem_read_data := io.data_mem_read_data
+  data_memory_controller.io.mem_read_sender <> io.data_mem_read_sender
+  data_memory_controller.io.mem_write_sender <> io.data_mem_write_sender
 
-  // Program Memory Controller
-  val program_memory_controller = Module(new Controller(ProgramMemAddrBits, ProgramMemDataBits, NumFetchers, ProgramMemNumChannels, 0))
+  // Program Memory Controller (read only)
+  val program_memory_controller = Module(
+    new Controller(ProgramMemAddrBits, ProgramMemDataBits, NumFetchers, ProgramMemNumChannels, 0)
+  )
+  program_memory_controller.io.mem_read_data := io.program_mem_read_data
+  program_memory_controller.io.mem_read_sender <> io.program_mem_read_sender
 
-
-  // Dispatcher
+  // Dispatcher inputs (2/3)
   val dispatcher = Module(new Dispatch(NumCores, ThreadsPerBlock))
+  dispatcher.io.start        := io.start
+  dispatcher.io.thread_count := dcr.io.thread_count
 
   // Compute Cores
   for (i <- 0 until NumCores) {
     val core = Module(
-      val core = Module(new Core(DataMemAddrBits, DataMemDataBits, ProgramMemAddrBits, ProgramMemDataBits, ThreadsPerBlock))
-      core.io.start := dispatcher.io.core_start(i)
-      core.io.block_id := dispatcher.io.core_block_id(i)
-      core.io.thread_count := dispatcher.io.core_thread_count(i)
-
-      core.io.program_mem_read_sender <> program_memory_controller.io.consumer_read_addr_receiver(i)
-      core.io.program_mem_read_data := program_memory_controller.io.consumer_read_data(i)
-
-      core.io.data_mem_read_data := data_memory_controller.io.consumer_read_data(i)
-      core.io.data_mem_read_address_sender <> data_memory_controller.io.consumer_read_addr_receiver(i)
-      core.io.data_mem_write_sender <> data_memory_controller.io.consumer_write_receiver(i)
-
-      dispatcher.io.core_done(i) := core.io.done
+      new Core(DataMemAddrBits, DataMemDataBits, ProgramMemAddrBits, ProgramMemDataBits, ThreadsPerBlock)
     )
+    core.io.start        := dispatcher.io.core_start(i)
+    core.io.block_id     := dispatcher.io.core_block_id(i)
+    core.io.thread_count := dispatcher.io.core_thread_count(i)
+
+    core.io.program_mem_read_address_sender <> program_memory_controller.io.consumer_read_addr_receiver(i)
+    core.io.program_mem_read_data := program_memory_controller.io.consumer_read_data(i)
+
+    for (j <- 0 until ThreadsPerBlock) {
+      val lsu_index = i * ThreadsPerBlock + j
+      core.io.data_mem_read_data(j) := data_memory_controller.io.consumer_read_data(lsu_index)
+      core.io.data_mem_read_address_sender <> data_memory_controller.io.consumer_read_addr_receiver(lsu_index)
+      core.io.data_mem_write_sender <> data_memory_controller.io.consumer_write_receiver(lsu_index)
+    }
+
+    // Dispatcher inputs (3/3)
+    dispatcher.io.core_done(i) := core.io.done
   }
+
+  io.done := dispatcher.io.done
 }

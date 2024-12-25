@@ -71,6 +71,7 @@ class Core(
   scheduler.io.decoded_ret   := decoder.io.decoded_ret
   scheduler.io.fetcher_state := fetcher.io.fetcher_state
 
+  // TODO: just use a for loop
   val compute_units = Seq
     .tabulate(ThreadsPerBlock)(i => {
       val alu     = Module(new Alu())
