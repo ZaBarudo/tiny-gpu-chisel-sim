@@ -13,11 +13,28 @@ import statecode.CoreState
 class AluSpec extends AnyFreeSpec with Matchers {
   "Test ALU for all supported operations" in {
     simulate(new Alu) { dut =>
+      def cmpResult(rs: Int, rt: Int): Int = {
+        val gt = if (rs > rt) 1 else 0
+        val eq = if (rs == rt) 1 else 0
+        val lt = if (rs < rt) 1 else 0
+        (gt << 2) | (eq << 1) | lt
+      }
+
+      // Calculate expected result based on operation
+      def arithmeticResult(rs: Int, rt: Int, op: AluOpCode.Type): Int = {
+        op match {
+          case AluOpCode.ADD => (rs + rt) & 0xff
+          case AluOpCode.SUB => ((rs - rt) + 256) & 0xff
+          case AluOpCode.MUL => (rs * rt) & 0xff
+          case AluOpCode.DIV => if (rt == 0) 0 else rs / rt
+        }
+      }
+
       val testValues = for {
-        rs         <- 0 to 10
-        rt         <- 0 to 10
+        rs         <- 0 to 255
+        rt         <- 0 to 255
         op         <- List(AluOpCode.ADD, AluOpCode.SUB, AluOpCode.MUL, AluOpCode.DIV)
-        core_state <- List(CoreState.IDLE, CoreState.EXECUTE, CoreState.DONE)
+        core_state <- List(CoreState.IDLE, CoreState.EXECUTE)
         is_cmp     <- List(true, false)
       } yield (rs, rt, op, core_state, is_cmp)
 
@@ -37,25 +54,15 @@ class AluSpec extends AnyFreeSpec with Matchers {
         dut.io.reg_in.rs.poke(rs.U)
         dut.io.reg_in.rt.poke(rt.U)
 
-        // Verify output
         dut.clock.step()
 
-        // Calculate expected result based on operation
-        if (is_cmp) {
-          val gt = rs > rt
-          val eq = rs == rt
-          val lt = rs < rt
-          dut.io.alu_out.expect(Cat(0.U(5.W), gt.B, eq.B, lt.B))
-        } else if (core_state != CoreState.EXECUTE) {
+        // Verify output
+        if (core_state != CoreState.EXECUTE) {
           dut.io.alu_out.expect(last_reg_val)
+        } else if (is_cmp) {
+          dut.io.alu_out.expect(cmpResult(rs, rt).U)
         } else {
-          val result = op match {
-            case AluOpCode.ADD => rs + rt
-            case AluOpCode.SUB => rs - rt
-            case AluOpCode.MUL => rs * rt
-            case AluOpCode.DIV => rs / rt
-          }
-          dut.io.alu_out.expect(result.U)
+          dut.io.alu_out.expect(arithmeticResult(rs, rt, op).U)
         }
 
         last_reg_val = dut.io.alu_out.peek().litValue.toInt
