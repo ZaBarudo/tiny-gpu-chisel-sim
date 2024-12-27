@@ -78,6 +78,23 @@ class RegisterFiles(ThreadsPerBlk: Int = 4, ThreadId: Int = 0, DataBits: Int = 8
     }
   }
 
+  // printf(
+  //   "registers: [%d%d%d%d%d%d%d%d%d%d%d%d%d]\n",
+  //   registers(0),
+  //   registers(1),
+  //   registers(2),
+  //   registers(3),
+  //   registers(4),
+  //   registers(5),
+  //   registers(6),
+  //   registers(7),
+  //   registers(8),
+  //   registers(9),
+  //   registers(10),
+  //   registers(11),
+  //   registers(12)
+  // )
+
   io.reg_out.rs := rs
   io.reg_out.rt := rt
 }
