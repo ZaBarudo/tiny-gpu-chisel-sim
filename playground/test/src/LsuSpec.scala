@@ -135,8 +135,8 @@ class LsuSpec extends AnyFreeSpec with Matchers {
             mem_write_ready = mem_write_ready
           )
 
-        // dut.io.lsu_state.expect(LSUState.IDLE)
-          assert(dut.io.lsu_state.peekValue().asBigInt == lsuModel.lsu_state.litValue )
+          // dut.io.lsu_state.expect(LSUState.IDLE)
+          assert(dut.io.lsu_state.peekValue().asBigInt == lsuModel.lsu_state.litValue)
           dut.io.lsu_out.expect(lsuModel.output_data.U)
           dut.io.mem_read_address_sender.valid.expect(lsuModel.read_valid.B)
           if (lsuModel.read_valid) {
