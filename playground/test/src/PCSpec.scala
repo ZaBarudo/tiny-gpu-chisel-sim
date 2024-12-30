@@ -97,9 +97,11 @@ class PCSpec extends AnyFreeSpec with Matchers {
         dut.io.decoded_nzp.poke(decoded_nzp.U)
         dut.io.decoded_immediate.poke(decoded_immediate.U)
         dut.io.decoded_nzp_write_enable.poke(decoded_nzp_write_enable.B)
-        dut.io.decoded_pc_mux.poke(false.B)
-        dut.io.alu_out.poke(0.U)
-        dut.io.current_pc.poke(0.U)
+        dut.io.decoded_pc_mux.poke(decoded_pc_mux.B)
+        dut.io.alu_out.poke(alu_out.U)
+        dut.io.current_pc.poke(current_pc.U)
+
+        dut.clock.step()
 
         dut.io.next_pc.expect(
           pcModel
@@ -115,6 +117,8 @@ class PCSpec extends AnyFreeSpec with Matchers {
             )
             .U
         )
+
+        cnt += 1
       }
     }
   }
