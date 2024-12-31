@@ -10,6 +10,41 @@ import org.scalatest.matchers.must.Matchers
 import statecode.AluOpCode
 import statecode.CoreState
 
+class AluModel {
+  var alu_out = 0
+
+  def update(
+    enable:         Boolean,
+    core_state:     CoreState.Type,
+    rs:             Int,
+    rt:             Int,
+    arithmetic_mux: AluOpCode.Type,
+    output_mux:     Boolean
+  ): Unit = {
+    if (enable && core_state == CoreState.EXECUTE) {
+      if (output_mux) {
+        // Compare operation
+        val gt = if (rs > rt) 1 else 0
+        val eq = if (rs == rt) 1 else 0
+        val lt = if (rs < rt) 1 else 0
+        alu_out = (gt << 2) | (eq << 1) | lt
+      } else {
+        // Arithmetic operation
+        alu_out = arithmetic_mux match {
+          case AluOpCode.ADD => (rs + rt) & 0xff
+          case AluOpCode.SUB => ((rs - rt) + 256) & 0xff
+          case AluOpCode.MUL => (rs * rt) & 0xff
+          case AluOpCode.DIV => if (rt == 0) 0 else rs / rt
+        }
+      }
+    }
+  }
+
+  def reset(): Unit = {
+    alu_out = 0
+  }
+}
+
 class AluSpec extends AnyFreeSpec with Matchers {
   "Test ALU for all supported operations" in {
     simulate(new Alu) { dut =>
@@ -43,7 +78,7 @@ class AluSpec extends AnyFreeSpec with Matchers {
       dut.reset.poke(false.B)
       dut.clock.step()
 
-      var last_reg_val = 0
+      var aluModel = new AluModel()
       // Test each combination
       for ((rs, rt, op, core_state, is_cmp) <- testValues) {
         // Set inputs
@@ -56,16 +91,16 @@ class AluSpec extends AnyFreeSpec with Matchers {
 
         dut.clock.step()
 
+        aluModel.update(
+          enable = true,
+          core_state = core_state,
+          rs = rs,
+          rt = rt,
+          arithmetic_mux = op,
+          output_mux = is_cmp
+        )
         // Verify output
-        if (core_state != CoreState.EXECUTE) {
-          dut.io.alu_out.expect(last_reg_val)
-        } else if (is_cmp) {
-          dut.io.alu_out.expect(cmpResult(rs, rt).U)
-        } else {
-          dut.io.alu_out.expect(arithmeticResult(rs, rt, op).U)
-        }
-
-        last_reg_val = dut.io.alu_out.peek().litValue.toInt
+        dut.io.alu_out.expect(aluModel.alu_out.U)
       }
     }
   }
