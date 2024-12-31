@@ -10,8 +10,8 @@ import org.scalatest.matchers.must.Matchers
 import statecode.CoreState
 
 class PCModel(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) {
-  private var nzp     = 0
-  private var next_pc = 0
+  var nzp     = 0
+  var next_pc = 0
 
   def update(
     enable:                   Boolean,
@@ -22,7 +22,7 @@ class PCModel(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) {
     decoded_pc_mux:           Boolean,
     alu_out:                  Int,
     current_pc:               Int
-  ): Int = {
+  ) = {
     if (enable) {
       // Execute state logic
       if (core_state == CoreState.EXECUTE) {
@@ -48,8 +48,6 @@ class PCModel(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) {
         }
       }
     }
-
-    next_pc
   }
 
   def reset(): Unit = {
@@ -103,19 +101,20 @@ class PCSpec extends AnyFreeSpec with Matchers {
 
         dut.clock.step()
 
+        pcModel
+          .update(
+            enable = true,
+            core_state = core_state,
+            decoded_nzp = decoded_nzp,
+            decoded_immediate = decoded_immediate,
+            decoded_nzp_write_enable = decoded_nzp_write_enable,
+            decoded_pc_mux = decoded_pc_mux,
+            alu_out = alu_out,
+            current_pc = current_pc
+          )
+
         dut.io.next_pc.expect(
-          pcModel
-            .update(
-              enable = true,
-              core_state = core_state,
-              decoded_nzp = decoded_nzp,
-              decoded_immediate = decoded_immediate,
-              decoded_nzp_write_enable = decoded_nzp_write_enable,
-              decoded_pc_mux = decoded_pc_mux,
-              alu_out = alu_out,
-              current_pc = current_pc
-            )
-            .U
+          pcModel.next_pc.U
         )
 
         cnt += 1
