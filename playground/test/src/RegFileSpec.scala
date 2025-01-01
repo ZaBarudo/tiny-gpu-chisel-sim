@@ -13,14 +13,45 @@ import statecode.CoreState
 import scala.collection.mutable.ArrayBuffer
 
 class RegModel {
-  val registers = ArrayBuffer.fill(16)(0)
+  var registers = ArrayBuffer.fill(16)(0)
+  var rs_in     = 0
+  var rt_in     = 0
 
-  def getReg(index: Int): Int = {
-    registers(index)
+  def rs_out(): Int = {
+    registers(rs_in)
   }
 
-  def setReg(index: Int, value: Int): Unit = {
-    registers(index) = value
+  def rt_out(): Int = {
+    registers(rt_in)
+  }
+
+  def update(
+    enable:                   Boolean,
+    block_id:                 Int,
+    core_state:               CoreState.Type,
+    rd:                       Int,
+    rs:                       Int,
+    rt:                       Int,
+    decoded_reg_write_enable: Boolean,
+    decoded_reg_input_mux:    RegInputOp.Type,
+    decoded_immediate:        Int,
+    alu_out:                  Int,
+    lsu_out:                  Int
+  ): Unit = {
+    if (enable) {
+      registers(13) = block_id
+      if (core_state == CoreState.REQUEST) {
+        rs_in = rs
+        rt_in = rt
+      } else if (decoded_reg_write_enable && rd < 13) {
+        val data = decoded_reg_input_mux match {
+          case RegInputOp.ARITHMETIC => alu_out
+          case RegInputOp.MEMORY     => lsu_out
+          case RegInputOp.CONSTANT   => decoded_immediate
+        }
+        registers(rd) = data
+      }
+    }
   }
 }
 
@@ -70,6 +101,7 @@ class RegFileSpec extends AnyFreeSpec with Matchers {
       val rng   = new scala.util.Random(42) // 42 is the seed for reproducibility
       for (i <- 0 until times) {
         // Generate test sequence
+        val block_id   = rng.nextInt(256)
         val rd_in      = rng.nextInt(12)
         val rs_in      = rng.nextInt(12)
         val rt_in      = rng.nextInt(12)
@@ -93,14 +125,19 @@ class RegFileSpec extends AnyFreeSpec with Matchers {
         dut.io.lsu_out.poke(lsu_out.U)
 
         // Update model
-        if (is_write) {
-          val data = op match {
-            case RegInputOp.ARITHMETIC => alu_out
-            case RegInputOp.MEMORY     => lsu_out
-            case RegInputOp.CONSTANT   => immediate
-          }
-          regModel.setReg(rd_in, data)
-        }
+        regModel.update(
+          enable = true,
+          block_id = block_id,
+          core_state = core_state,
+          rd = rd_in,
+          rs = rs_in,
+          rt = rt_in,
+          decoded_reg_write_enable = is_write,
+          decoded_reg_input_mux = op,
+          decoded_immediate = immediate,
+          alu_out = alu_out,
+          lsu_out = lsu_out
+        )
 
         dut.clock.step()
         // println(
@@ -109,8 +146,8 @@ class RegFileSpec extends AnyFreeSpec with Matchers {
         // println(s"regModel after 1 cycle: ${regModel.registers}")
 
         if (core_state == CoreState.REQUEST) {
-          dut.io.reg_out.rs.expect(regModel.getReg(rs_in).U)
-          dut.io.reg_out.rt.expect(regModel.getReg(rt_in).U)
+          dut.io.reg_out.rs.expect(regModel.rs_out().U)
+          dut.io.reg_out.rt.expect(regModel.rt_out().U)
         }
       }
     }
