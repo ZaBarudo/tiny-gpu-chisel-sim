@@ -96,6 +96,9 @@ class CoreModel(
   var data_mem_write_address_bits  = Array.fill(ThreadsPerBlock)(0)
   var data_mem_write_data_bits     = Array.fill(ThreadsPerBlock)(0)
 
+  // debug var
+  var cycle = 0
+
   def update(
     // Kernel execution inputs
     start:        Boolean,
@@ -211,6 +214,9 @@ class CoreModel(
       data_mem_write_data_bits(i) = lsuModels(i).write_data
     }
 
+    // print and update debug info
+    println("#Cycle: " + cycle + ", CoreState: " + prevCycleData.core_state)
+    cycle += 1
   }
 
   // def reset(): Unit = {
@@ -240,6 +246,8 @@ class CoreSpec extends AnyFreeSpec with Matchers {
           dut.reset.poke(false.B)
           dut.clock.step()
 
+          println("########## Start ##########")
+
           var cnt       = 0
           val rng       = new scala.util.Random(42) // 42 is the seed for reproducibility
           val coreModel = new CoreModel()
@@ -264,6 +272,9 @@ class CoreSpec extends AnyFreeSpec with Matchers {
               dut.io.data_mem_read_address_sender(i).ready.poke(data_mem_read_ready(i).B)
               dut.io.data_mem_write_sender(i).ready.poke(data_mem_write_ready(i).B)
             }
+
+            // Then in the print statement:
+            println(s"DUT Core State:   ${dut.core_state.peekValue()}")
 
             println(s"\n=== Random Values for Cycle $cnt ===")
             println(s"Block ID: $block_id")
@@ -301,6 +312,8 @@ class CoreSpec extends AnyFreeSpec with Matchers {
               dut.io.data_mem_write_sender(i).bits.address.expect(coreModel.data_mem_write_address_bits(i).U)
               dut.io.data_mem_write_sender(i).bits.data.expect(coreModel.data_mem_write_data_bits(i).U)
             }
+
+            cnt += 1
           }
       }
     }

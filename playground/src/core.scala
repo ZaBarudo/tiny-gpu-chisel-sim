@@ -56,9 +56,14 @@ class Core(
   val decoder   = Module(new Decoder())
   val scheduler = Module(new Scheduler(ThreadsPerBlock))
 
+  val core_state = RegNext(scheduler.io.core_state)
+  val current_pc = RegNext(scheduler.io.current_pc)
+
+  // printf(cf"--Core State: $core_state\n")
+
   // Fetcher inputs connections (3/3)
-  fetcher.io.core_state    := scheduler.io.core_state
-  fetcher.io.current_pc    := scheduler.io.current_pc
+  fetcher.io.core_state    := core_state
+  fetcher.io.current_pc    := current_pc
   fetcher.io.mem_read_data := io.program_mem_read_data
 
   // Decoder inputs connections (2/2)
