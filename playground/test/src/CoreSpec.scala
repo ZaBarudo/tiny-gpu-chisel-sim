@@ -10,6 +10,8 @@ import org.scalatest.matchers.must.Matchers
 import statecode.CoreState
 import fetcher.FetcherState
 import lsu.LSUState
+import statecode.RegInputOp
+import statecode.AluOpCode
 
 class CoreModel(
   DataMemAddrBits:    Int = 8,
@@ -29,6 +31,29 @@ class CoreModel(
   var pcModels      = Array.fill(ThreadsPerBlock)(new pc.PCModel())
 
   class PrevCycleData {
+    // Fetcher outputs
+    var fetcher_state = FetcherState.IDLE
+    var read_valid    = false
+    var read_address  = 0
+    var instruction   = 0
+    // Fetcher end
+
+    // Decoder outputs
+    var decoded_rd_address         = 0
+    var decoded_rs_address         = 0
+    var decoded_rt_address         = 0
+    var decoded_nzp                = 0
+    var decoded_immediate          = 0
+    var decoded_reg_write_enable   = false
+    var decoded_mem_read_enable    = false
+    var decoded_mem_write_enable   = false
+    var decoded_nzp_write_enable   = false
+    var decoded_reg_input_mux      = RegInputOp.ARITHMETIC
+    var decoded_alu_arithmetic_mux = AluOpCode.ADD
+    var decoded_alu_output_mux     = false
+    var decoded_pc_mux             = false
+    var decoded_ret                = false
+    // Decoder end
 
     // Scheduler outputs
     var current_pc = 0
@@ -36,18 +61,22 @@ class CoreModel(
     var done       = false
     // Scheduler end
 
+    // ALU outputs
+    var alu_out = Array.fill(ThreadsPerBlock)(0)
+    // ALU end
+
     // PC output
     var next_pc = Array.fill(ThreadsPerBlock)(0)
     // PC end
 
     // LSU outputs
-    var lsu_read_valid    = Array.fill(ThreadsPerBlock)(false)
-    var lsu_read_address  = Array.fill(ThreadsPerBlock)(0)
-    var lsu_write_valid   = Array.fill(ThreadsPerBlock)(false)
-    var lsu_write_address = Array.fill(ThreadsPerBlock)(0)
-    var lsu_write_data    = Array.fill(ThreadsPerBlock)(0)
-    var lsu_state         = Array.fill(ThreadsPerBlock)(LSUState.IDLE)
-    var lsu_out           = Array.fill(ThreadsPerBlock)(0)
+    // var lsu_read_valid    = Array.fill(ThreadsPerBlock)(false)
+    // var lsu_read_address  = Array.fill(ThreadsPerBlock)(0)
+    // var lsu_write_valid   = Array.fill(ThreadsPerBlock)(false)
+    // var lsu_write_address = Array.fill(ThreadsPerBlock)(0)
+    // var lsu_write_data    = Array.fill(ThreadsPerBlock)(0)
+    var lsu_state = Array.fill(ThreadsPerBlock)(LSUState.IDLE)
+    var lsu_out   = Array.fill(ThreadsPerBlock)(0)
     // LSU end
 
     // Register Files outputs
@@ -55,29 +84,57 @@ class CoreModel(
     var regout_rt = Array.fill(ThreadsPerBlock)(0)
     // Register end
 
-    def save(module: scheduler.SchedulerModel) = {
-      core_state = module.core_state
-      current_pc = module.current_pc
-      done = module.done
+    def save(model: fetcher.FetcherModel) = {
+      fetcher_state = model.fetcher_state
+      read_valid = model.read_valid
+      read_address = model.read_address
+      instruction = model.instruction
     }
 
-    def save(module: pc.PCModel, idx: Int) = {
-      next_pc(idx) = module.next_pc
+    def save(model: decoder.DecoderModel) = {
+      decoded_rd_address = model.decoded_rd_address
+      decoded_rs_address = model.decoded_rs_address
+      decoded_rt_address = model.decoded_rt_address
+      decoded_nzp = model.decoded_nzp
+      decoded_immediate = model.decoded_immediate
+      decoded_reg_write_enable = model.decoded_reg_write_enable
+      decoded_mem_read_enable = model.decoded_mem_read_enable
+      decoded_mem_write_enable = model.decoded_mem_write_enable
+      decoded_nzp_write_enable = model.decoded_nzp_write_enable
+      decoded_reg_input_mux = model.decoded_reg_input_mux
+      decoded_alu_arithmetic_mux = model.decoded_alu_arithmetic_mux
+      decoded_alu_output_mux = model.decoded_alu_output_mux
+      decoded_pc_mux = model.decoded_pc_mux
+      decoded_ret = model.decoded_ret
     }
 
-    def save(module: lsu.LsuModel, idx: Int) = {
-      lsu_read_valid(idx) = module.read_valid
-      lsu_read_address(idx) = module.read_address
-      lsu_write_valid(idx) = module.write_valid
-      lsu_write_address(idx) = module.write_address
-      lsu_write_data(idx) = module.write_data
-      lsu_state(idx) = module.lsu_state
-      lsu_out(idx) = module.output_data
+    def save(model: scheduler.SchedulerModel) = {
+      core_state = model.core_state
+      current_pc = model.current_pc
+      done = model.done
     }
 
-    def save(module: registers.RegModel, idx: Int) = {
-      regout_rs(idx) = module.rs_out()
-      regout_rt(idx) = module.rt_out()
+    def save(model: alu.AluModel, idx: Int) = {
+      alu_out(idx) = model.alu_out
+    }
+
+    def save(model: pc.PCModel, idx: Int) = {
+      next_pc(idx) = model.next_pc
+    }
+
+    def save(model: lsu.LsuModel, idx: Int) = {
+      // lsu_read_valid(idx) = model.read_valid
+      // lsu_read_address(idx) = model.read_address
+      // lsu_write_valid(idx) = model.write_valid
+      // lsu_write_address(idx) = model.write_address
+      // lsu_write_data(idx) = model.write_data
+      lsu_state(idx) = model.lsu_state
+      lsu_out(idx) = model.output_data
+    }
+
+    def save(model: registers.RegModel, idx: Int) = {
+      regout_rs(idx) = model.rs_out()
+      regout_rt(idx) = model.rt_out()
     }
   }
 
@@ -125,45 +182,44 @@ class CoreModel(
     // Update decoder
     decoderModel.update(
       core_state = prevCycleData.core_state,
-      instruction = fetcherModel.instruction
+      instruction = prevCycleData.instruction
     )
 
     // Update scheduler
     schedulerModel.update(
       start = start,
-      mem_read_enable = decoderModel.decoded_mem_read_enable,
-      mem_write_enable = decoderModel.decoded_mem_write_enable,
-      decoded_ret = decoderModel.decoded_ret,
-      fetcher_state = fetcherModel.fetcher_state,
+      mem_read_enable = prevCycleData.decoded_mem_read_enable,
+      mem_write_enable = prevCycleData.decoded_mem_write_enable,
+      decoded_ret = prevCycleData.decoded_ret,
+      fetcher_state = prevCycleData.fetcher_state,
       lsu_state = prevCycleData.lsu_state,
       next_pc = prevCycleData.next_pc
     )
-    prevCycleData.save(schedulerModel)
 
     // Update per-thread components
     for (i <- 0 until ThreadsPerBlock) {
       val enable = i < thread_count
 
-      val rd_in = decoderModel.decoded_rd_address
-      val rs_in = decoderModel.decoded_rs_address
-      val rt_in = decoderModel.decoded_rt_address
+      val rd_in = prevCycleData.decoded_rd_address
+      val rs_in = prevCycleData.decoded_rs_address
+      val rt_in = prevCycleData.decoded_rt_address
 
       // Update ALU
       aluModels(i).update(
         enable = enable,
-        core_state = schedulerModel.core_state,
+        core_state = prevCycleData.core_state,
         rs = prevCycleData.regout_rs(i),
         rt = prevCycleData.regout_rt(i),
-        arithmetic_mux = decoderModel.decoded_alu_arithmetic_mux,
-        output_mux = decoderModel.decoded_alu_output_mux
+        arithmetic_mux = prevCycleData.decoded_alu_arithmetic_mux,
+        output_mux = prevCycleData.decoded_alu_output_mux
       )
 
       // Update LSU
       lsuModels(i).update(
         enable = enable,
-        core_state = schedulerModel.core_state,
-        read_enable = decoderModel.decoded_mem_read_enable,
-        write_enable = decoderModel.decoded_mem_write_enable,
+        core_state = prevCycleData.core_state,
+        read_enable = prevCycleData.decoded_mem_read_enable,
+        write_enable = prevCycleData.decoded_mem_write_enable,
         rs = prevCycleData.regout_rs(i),
         rt = prevCycleData.regout_rt(i),
         mem_read_data = data_mem_read_data(i),
@@ -175,29 +231,32 @@ class CoreModel(
       regfileModels(i).update(
         enable = enable,
         block_id = block_id,
-        core_state = schedulerModel.core_state,
+        core_state = prevCycleData.core_state,
         rs = rs_in,
         rd = rd_in,
         rt = rt_in,
-        decoded_reg_write_enable = decoderModel.decoded_reg_write_enable,
-        decoded_reg_input_mux = decoderModel.decoded_reg_input_mux,
-        decoded_immediate = decoderModel.decoded_immediate,
-        alu_out = aluModels(i).alu_out,
-        lsu_out = lsuModels(i).output_data
+        decoded_reg_write_enable = prevCycleData.decoded_reg_write_enable,
+        decoded_reg_input_mux = prevCycleData.decoded_reg_input_mux,
+        decoded_immediate = prevCycleData.decoded_immediate,
+        alu_out = prevCycleData.alu_out(i),
+        lsu_out = prevCycleData.lsu_out(i)
       )
-      prevCycleData.save(regfileModels(i), i)
 
       // Update PC
       pcModels(i).update(
         enable = enable,
-        core_state = schedulerModel.core_state,
-        decoded_nzp = decoderModel.decoded_nzp,
-        decoded_immediate = decoderModel.decoded_immediate,
-        decoded_nzp_write_enable = decoderModel.decoded_nzp_write_enable,
-        decoded_pc_mux = decoderModel.decoded_pc_mux,
-        alu_out = aluModels(i).alu_out,
-        current_pc = schedulerModel.current_pc
+        core_state = prevCycleData.core_state,
+        decoded_nzp = prevCycleData.decoded_nzp,
+        decoded_immediate = prevCycleData.decoded_immediate,
+        decoded_nzp_write_enable = prevCycleData.decoded_nzp_write_enable,
+        decoded_pc_mux = prevCycleData.decoded_pc_mux,
+        alu_out = prevCycleData.alu_out(i),
+        current_pc = prevCycleData.current_pc
       )
+
+      prevCycleData.save(aluModels(i), i)
+      prevCycleData.save(lsuModels(i), i)
+      prevCycleData.save(regfileModels(i), i)
       prevCycleData.save(pcModels(i), i)
     }
 
@@ -214,8 +273,14 @@ class CoreModel(
       data_mem_write_data_bits(i) = lsuModels(i).write_data
     }
 
+    prevCycleData.save(fetcherModel)
+    prevCycleData.save(decoderModel)
+    prevCycleData.save(schedulerModel)
+
     // print and update debug info
-    println("#Cycle: " + cycle + ", CoreState: " + prevCycleData.core_state)
+    // println(
+    //   "#Model After Cycle: " + cycle + ", CoreState: " + prevCycleData.core_state + ", PC: " + prevCycleData.current_pc + ", Fetcher State: " + fetcherModel.fetcher_state
+    // )
     cycle += 1
   }
 
@@ -246,12 +311,12 @@ class CoreSpec extends AnyFreeSpec with Matchers {
           dut.reset.poke(false.B)
           dut.clock.step()
 
-          println("########## Start ##########")
+          // println("########## Start ##########")
 
           var cnt       = 0
           val rng       = new scala.util.Random(42) // 42 is the seed for reproducibility
           val coreModel = new CoreModel()
-          while (cnt < 1000) {
+          while (cnt < 10000) {
             val block_id             = rng.nextInt(13)
             val thread_count         = rng.nextInt(ThreadsPerBlock)
             val mem_read_ready       = rng.nextBoolean()
@@ -273,19 +338,17 @@ class CoreSpec extends AnyFreeSpec with Matchers {
               dut.io.data_mem_write_sender(i).ready.poke(data_mem_write_ready(i).B)
             }
 
-            // Then in the print statement:
-            println(s"DUT Core State:   ${dut.core_state.peekValue()}")
-
-            println(s"\n=== Random Values for Cycle $cnt ===")
-            println(s"Block ID: $block_id")
-            println(s"Thread Count: $thread_count")
-            println(s"Program Memory Read: [ready=$mem_read_ready, data=$mem_read_data]")
-            println(s"Read Data:    [${data_mem_read_data.mkString(", ")}]")
-            println(s"Read Ready:   [${data_mem_read_ready.mkString(", ")}]")
-            println(s"Write Ready:  [${data_mem_write_ready.mkString(", ")}]")
-            println()
-
             dut.clock.step()
+
+            // println(s"\n=== Random Values for Cycle $cnt ===")
+            // println(s"Block ID: $block_id")
+            // println(s"Thread Count: $thread_count")
+            // println(s"Program Memory Read: [ready=$mem_read_ready, data=$mem_read_data]")
+            // println(s"Read Data:    [${data_mem_read_data.mkString(", ")}]")
+            // println(s"Read Ready:   [${data_mem_read_ready.mkString(", ")}]")
+            // println(s"Write Ready:  [${data_mem_write_ready.mkString(", ")}]")
+            // println()
+            // println("--Aft Core State: " + dut.io.core_state.peekValue() + ", current_pc: " + dut.io.current_pc.peek())
 
             coreModel.update(
               start = true,

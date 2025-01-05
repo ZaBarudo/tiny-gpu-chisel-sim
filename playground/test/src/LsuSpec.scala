@@ -100,7 +100,7 @@ class LsuSpec extends AnyFreeSpec with Matchers {
         val rng      = new scala.util.Random(42) // 42 is the seed for reproducibility
         val lsuModel = new LsuModel()
 
-        while (cnt < 1000) {
+        while (cnt < 10000) {
           val enable          = rng.nextBoolean()
           val core_state      = randomCoreState(rng)
           val read_enable     = rng.nextBoolean()

@@ -12,6 +12,7 @@ import statecode.CoreState
 class PCModel(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) {
   var nzp     = 0
   var next_pc = 0
+  val max_pc  = 1 << MemAddrWidth
 
   def update(
     enable:                   Boolean,
@@ -32,11 +33,11 @@ class PCModel(DataMemWidth: Int = 8, MemAddrWidth: Int = 8) {
             next_pc = decoded_immediate
           } else {
             // Branch not taken
-            next_pc = current_pc + 1
+            next_pc = (current_pc + 1) % max_pc
           }
         } else {
           // Normal PC increment
-          next_pc = current_pc + 1
+          next_pc = (current_pc + 1) % max_pc
         }
       }
 
@@ -82,7 +83,7 @@ class PCSpec extends AnyFreeSpec with Matchers {
       var cnt     = 0
       val rng     = new scala.util.Random(42) // 42 is the seed for reproducibility
       val pcModel = new PCModel()
-      while (cnt < 1000) {
+      while (cnt < 10000) {
         val core_state               = randomCoreState(rng)
         val decoded_nzp              = rng.nextInt(4)
         val decoded_immediate        = rng.nextInt(256)

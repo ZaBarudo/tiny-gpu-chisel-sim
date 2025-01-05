@@ -76,7 +76,7 @@ class FetcherSpec extends AnyFreeSpec with Matchers {
         val rng          = new scala.util.Random(42) // 42 is the seed for reproducibility
         val fetcherModel = new FetcherModel()
 
-        while (cnt < 1000) {
+        while (cnt < 10000) {
           val core_state     = randomCoreState(rng)
           val current_pc     = rng.nextInt(256)
           val mem_read_ready = rng.nextInt(2) == 1

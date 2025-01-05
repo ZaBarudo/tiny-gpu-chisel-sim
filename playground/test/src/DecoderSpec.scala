@@ -127,7 +127,7 @@ class DecoderSpec extends AnyFreeSpec with Matchers {
         var cnt          = 0
         val rng          = new scala.util.Random(42) // 42 is the seed for reproducibility
         val decoderModel = new DecoderModel()
-        while (cnt < 1000) {
+        while (cnt < 10000) {
           val core_state  = CoreState.DECODE
           val instruction = rng.nextInt(65536) // 2^16 for 16-bit data
 

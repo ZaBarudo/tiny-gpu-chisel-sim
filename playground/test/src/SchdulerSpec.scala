@@ -93,7 +93,7 @@ class SchedulerSpec extends AnyFreeSpec with Matchers {
           }
         }
 
-        while (cnt < 1000) {
+        while (cnt < 10000) {
           // Generate random inputs
           val start            = rng.nextBoolean()
           val mem_read_enable  = rng.nextBoolean()

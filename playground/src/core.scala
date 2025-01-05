@@ -50,16 +50,23 @@ class Core(
         val data    = UInt(DataMemDataBits.W)
       })
     )
+
+    val core_state = Output(CoreState())
+    val current_pc = Output(UInt(8.W))
   })
 
   val fetcher   = Module(new Fetcher(ProgramMemAddrBits, ProgramMemDataBits))
   val decoder   = Module(new Decoder())
   val scheduler = Module(new Scheduler(ThreadsPerBlock))
 
-  val core_state = RegNext(scheduler.io.core_state)
-  val current_pc = RegNext(scheduler.io.current_pc)
+  // val core_state = RegNext(scheduler.io.core_state)
+  // val current_pc = RegNext(scheduler.io.current_pc)
+  val core_state = Wire(CoreState())
+  val current_pc = Wire(UInt(8.W))
+  core_state := scheduler.io.core_state
+  current_pc := scheduler.io.current_pc
 
-  // printf(cf"--Core State: $core_state\n")
+  // printf(cf"--Core State: $core_state, current PC: $current_pc, Fetcher State: ${fetcher.io.fetcher_state}\n")
 
   // Fetcher inputs connections (3/3)
   fetcher.io.core_state    := core_state
@@ -134,4 +141,8 @@ class Core(
   // Connect to module outputs (8/8)
   io.done := scheduler.io.done
   io.program_mem_read_address_sender <> fetcher.io.mem_read_address_sender
+
+  // debug
+  io.core_state := core_state
+  io.current_pc := current_pc
 }
