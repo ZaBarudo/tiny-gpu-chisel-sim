@@ -131,7 +131,7 @@ class DecoderSpec extends AnyFreeSpec with Matchers {
           val core_state  = CoreState.DECODE
           val instruction = rng.nextInt(65536) // 2^16 for 16-bit data
 
-        //   println("instruction: " + f"${instruction.toBinaryString}%16s".replace(' ', '0').grouped(4).mkString(" "))
+          //   println("instruction: " + f"${instruction.toBinaryString}%16s".replace(' ', '0').grouped(4).mkString(" "))
 
           dut.io.core_state.poke(core_state)
           dut.io.instruction.poke(instruction.U)

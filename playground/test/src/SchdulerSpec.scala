@@ -95,13 +95,13 @@ class SchedulerSpec extends AnyFreeSpec with Matchers {
 
         while (cnt < 10000) {
           // Generate random inputs
-          val start            = rng.nextBoolean()
-          val mem_read_enable  = rng.nextBoolean()
-          val mem_write_enable = rng.nextBoolean()
-          val decoded_ret      = rng.nextBoolean()
-          val (fetcher_state, _)    = FetcherState.safe(rng.nextInt(3).U)              // Assuming 3 states: IDLE, FETCHING, FETCHED
-          val lsu_state        = Array.fill(ThreadsPerBlock)(randomLsuState(rng)) // Assuming 4 states in LSUState
-          val next_pc          = Array.fill(ThreadsPerBlock)(rng.nextInt(256))    // 8-bit PC values
+          val start              = rng.nextBoolean()
+          val mem_read_enable    = rng.nextBoolean()
+          val mem_write_enable   = rng.nextBoolean()
+          val decoded_ret        = rng.nextBoolean()
+          val (fetcher_state, _) = FetcherState.safe(rng.nextInt(3).U)              // Assuming 3 states: IDLE, FETCHING, FETCHED
+          val lsu_state          = Array.fill(ThreadsPerBlock)(randomLsuState(rng)) // Assuming 4 states in LSUState
+          val next_pc            = Array.fill(ThreadsPerBlock)(rng.nextInt(256))    // 8-bit PC values
 
           // Poke inputs
           dut.io.start.poke(start.B)
