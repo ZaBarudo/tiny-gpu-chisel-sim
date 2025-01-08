@@ -35,6 +35,8 @@ class Dispatch(NumCores: Int = 2, ThreadsPerCore: Int = 4) extends Module {
   val core_block_id     = RegInit(VecInit(Seq.fill(NumCores)(0.U(8.W))))
   val core_thread_count = RegInit(VecInit(Seq.fill(NumCores)(ThreadsPerCore.U(ThreadCountWidth.W))))
 
+  // printf(cf"--total_blocks = $total_blocks, thread_count = ${io.thread_count}, blocks_done = $blocks_done\n")
+
   // Keep track of how many blocks have been processed
   when(!reset.asBool && io.start) {
     when(!start_execution) {
@@ -53,6 +55,7 @@ class Dispatch(NumCores: Int = 2, ThreadsPerCore: Int = 4) extends Module {
 
         // If this core was just reset, check if there are more blocks to be dispatched
         when(blocks_dispatched < total_blocks) {
+          // printf(cf"--i = $i, blocks_dispatched = $blocks_dispatched, total_blocks = $total_blocks\n")
           core_start(i)        := true.B
           core_block_id(i)     := blocks_dispatched
           core_thread_count(i) := Mux(
@@ -64,6 +67,7 @@ class Dispatch(NumCores: Int = 2, ThreadsPerCore: Int = 4) extends Module {
         }
       }
 
+      // printf(cf"--core_start(i) = ${core_start(i)}, io.core_done(i) = ${io.core_done(i)}\n")
       when(core_start(i) && io.core_done(i)) {
         // If a core just finished executing it's current block, reset it
         core_reset(i) := true.B

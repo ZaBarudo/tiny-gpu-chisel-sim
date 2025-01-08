@@ -13,9 +13,9 @@ class DispatchModel(NumCores: Int = 2, ThreadsPerCore: Int = 4) {
   val ThreadCountWidth = log2Ceil(ThreadsPerCore) + 1
 
   var core_start        = Array.fill(NumCores)(false)
-  var core_reset        = Array.fill(NumCores)(false)
+  var core_reset        = Array.fill(NumCores)(true)
   var core_block_id     = Array.fill(NumCores)(0)
-  var core_thread_count = Array.fill(NumCores)(0)
+  var core_thread_count = Array.fill(NumCores)(ThreadsPerCore)
   var done              = false
 
   // interal states
@@ -38,11 +38,17 @@ class DispatchModel(NumCores: Int = 2, ThreadsPerCore: Int = 4) {
     }
 
     val total_blocks = (thread_count + ThreadsPerCore - 1) / ThreadsPerCore
+    // println(s"total_blocks in model: $total_blocks, thread_count = $thread_count, blocks_done = $blocks_done")
     if (blocks_done == total_blocks) {
       done = true
     }
 
+    var run_cnt         = 0
+    var prev_core_start = core_start.clone()
     for (i <- 0 until NumCores) {
+      // println(
+      //   s"#i = $i, blocks_dispatched = $blocks_dispatched, total_blocks = $total_blocks, core_reset(i) = ${core_reset(i)}"
+      // )
       if (core_reset(i)) {
         core_reset(i) = false
 
@@ -52,16 +58,19 @@ class DispatchModel(NumCores: Int = 2, ThreadsPerCore: Int = 4) {
           core_thread_count(i) = if (blocks_dispatched == total_blocks - 1) {
             thread_count - (blocks_dispatched * ThreadsPerCore)
           } else { ThreadsPerCore }
-          blocks_dispatched += 1
+          // blocks_dispatched += 1
+          run_cnt += 1
         }
       }
 
-      if (core_start(i) && core_done(i)) {
+      // println(s"#i = $i, core_start(i) = ${prev_core_start(i)}, core_done(i) = ${core_done(i)}")
+      if (prev_core_start(i) && core_done(i)) {
         core_reset(i) = true
         core_start(i) = false
         blocks_done += 1
       }
     }
+    blocks_dispatched += run_cnt
   }
 }
 
