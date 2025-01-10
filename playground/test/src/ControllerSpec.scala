@@ -7,18 +7,18 @@ import chisel3.simulator.EphemeralSimulator._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
-class ControllerModel {
+class ControllerModel(AddrBits: Int = 8, DataBits: Int = 16, NumConsumers: Int = 4, NumChannels: Int = 1) {
   var controller_state         = Array.fill(3)(ControlState.IDLE)
-  var mem_read_valid           = Array.fill(1)(false)
-  var mem_read_address         = Array.fill(1)(0)
-  var mem_write_valid          = Array.fill(1)(false)
-  var mem_write_address        = Array.fill(1)(0)
-  var mem_write_data           = Array.fill(1)(0)
-  var consumer_read_ready      = Array.fill(4)(false)
-  var consumer_read_data       = Array.fill(4)(0)
-  var consumer_write_ready     = Array.fill(4)(false)
-  var channel_serving_consumer = Array.fill(4)(false)
-  var current_consumer         = Array.fill(1)(0)
+  var mem_read_valid           = Array.fill(NumChannels)(false)
+  var mem_read_address         = Array.fill(NumChannels)(0)
+  var mem_write_valid          = Array.fill(NumChannels)(false)
+  var mem_write_address        = Array.fill(NumChannels)(0)
+  var mem_write_data           = Array.fill(NumChannels)(0)
+  var consumer_read_ready      = Array.fill(NumConsumers)(false)
+  var consumer_read_data       = Array.fill(NumConsumers)(0)
+  var consumer_write_ready     = Array.fill(NumConsumers)(false)
+  var channel_serving_consumer = Array.fill(NumConsumers)(false)
+  var current_consumer         = Array.fill(NumChannels)(0)
 
   def update(
     consumer_read_valid:  Array[Boolean],
@@ -34,31 +34,27 @@ class ControllerModel {
     for (i <- 0 until 1) { // Assuming NumChannels = 1
       controller_state(i) match {
         case ControlState.IDLE =>
-          // Look for pending read requests
-          val readRequests = consumer_read_valid.zipWithIndex.filter { case (valid, idx) =>
-            valid && !channel_serving_consumer(idx)
-          }
-          if (readRequests.nonEmpty) {
-            val (_, consumerIdx) = readRequests.last
-            channel_serving_consumer(consumerIdx) = true
-            current_consumer(i) = consumerIdx
-            mem_read_valid(i) = true
-            mem_read_address(i) = consumer_read_addr(consumerIdx)
-            controller_state(i) = ControlState.READ_WAITING
-          } else {
-            // Look for pending write requests
-            val writeRequests = consumer_write_valid.zipWithIndex.filter { case (valid, idx) =>
-              valid && !channel_serving_consumer(idx)
-            }
-            if (writeRequests.nonEmpty) {
-              val (_, consumerIdx) = writeRequests.last
-              channel_serving_consumer(consumerIdx) = true
-              current_consumer(i) = consumerIdx
+          // Follow the original verilog implementation
+          var break = false
+          var j     = 0
+          while (j < NumConsumers && !break) {
+            if (consumer_read_valid(j) && !channel_serving_consumer(j)) {
+              channel_serving_consumer(j) = true
+              current_consumer(i) = j
+              mem_read_valid(i) = true
+              mem_read_address(i) = consumer_read_addr(j)
+              controller_state(i) = ControlState.READ_WAITING
+              break = true
+            } else if (consumer_write_valid(j) && !channel_serving_consumer(j)) {
+              channel_serving_consumer(j) = true
+              current_consumer(i) = j
               mem_write_valid(i) = true
-              mem_write_address(i) = consumer_write_addr(consumerIdx)
-              mem_write_data(i) = consumer_write_data(consumerIdx)
+              mem_write_address(i) = consumer_write_addr(j)
+              mem_write_data(i) = consumer_write_data(j)
               controller_state(i) = ControlState.WRITE_WAITING
+              break = true
             }
+            j += 1
           }
 
         case ControlState.READ_WAITING =>
@@ -91,6 +87,21 @@ class ControllerModel {
           }
       }
     }
+
+    // Debug printing
+    println("=== Model Internal State ===")
+    println(s"-controller_state: ${controller_state.mkString(", ")}")
+    println(s"-mem_read_valid: ${mem_read_valid.mkString(", ")}")
+    println(s"-mem_read_address: ${mem_read_address.mkString(", ")}")
+    println(s"-mem_write_valid: ${mem_write_valid.mkString(", ")}")
+    println(s"-mem_write_address: ${mem_write_address.mkString(", ")}")
+    println(s"-mem_write_data: ${mem_write_data.mkString(", ")}")
+    println(s"-consumer_read_ready: ${consumer_read_ready.mkString(", ")}")
+    println(s"-consumer_read_data: ${consumer_read_data.mkString(", ")}")
+    println(s"-consumer_write_ready: ${consumer_write_ready.mkString(", ")}")
+    println(s"-channel_serving_consumer: ${channel_serving_consumer.mkString(", ")}")
+    println(s"-current_consumer: ${current_consumer.mkString(", ")}")
+    println("==================\n")
   }
 
   def reset(): Unit = {
@@ -129,12 +140,12 @@ class ControllerSpec extends AnyFreeSpec with Matchers {
         while (cnt < 10000) {
           // Generate random inputs
           val consumer_read_valid  = Array.fill(NumConsumers)(rng.nextBoolean())
-          val consumer_read_addr   = Array.fill(NumConsumers)(rng.nextInt(256))
+          val consumer_read_addr   = Array.fill(NumConsumers)(rng.nextInt(AddrBits))
           val consumer_write_valid = Array.fill(NumConsumers)(rng.nextBoolean())
-          val consumer_write_addr  = Array.fill(NumConsumers)(rng.nextInt(256))
-          val consumer_write_data  = Array.fill(NumConsumers)(rng.nextInt(65536))
+          val consumer_write_addr  = Array.fill(NumConsumers)(rng.nextInt(AddrBits))
+          val consumer_write_data  = Array.fill(NumConsumers)(rng.nextInt(DataBits))
           val mem_read_ready       = Array.fill(NumChannels)(rng.nextBoolean())
-          val mem_read_data        = Array.fill(NumChannels)(rng.nextInt(65536))
+          val mem_read_data        = Array.fill(NumChannels)(rng.nextInt(DataBits))
           val mem_write_ready      = Array.fill(NumChannels)(rng.nextBoolean())
 
           // Apply inputs to DUT
@@ -153,6 +164,16 @@ class ControllerSpec extends AnyFreeSpec with Matchers {
           }
 
           dut.clock.step()
+
+          println("\n\n=== Input Signals ===")
+          println(s"consumer_read_valid: ${consumer_read_valid.mkString(", ")}")
+          println(s"consumer_read_addr: ${consumer_read_addr.mkString(", ")}")
+          println(s"consumer_write_valid: ${consumer_write_valid.mkString(", ")}")
+          println(s"consumer_write_addr: ${consumer_write_addr.mkString(", ")}")
+          println(s"consumer_write_data: ${consumer_write_data.mkString(", ")}")
+          println(s"mem_read_ready: ${mem_read_ready.mkString(", ")}")
+          println(s"mem_read_data: ${mem_read_data.mkString(", ")}")
+          println(s"mem_write_ready: ${mem_write_ready.mkString(", ")}")
 
           // Update model
           controllerModel.update(
