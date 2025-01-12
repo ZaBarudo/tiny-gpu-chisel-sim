@@ -65,19 +65,19 @@ class Controller(
 
   val channel_serving_consumer = RegInit(VecInit(Seq.fill(NumConsumers)(false.B)))
 
-  // Add debug printing
-  printf("#### Module Internal State ####\n")
-  printf(cf"#controller_state: ${controller_state}\n")
-  printf(cf"#mem_read_valid: ${mem_read_valid}\n")
-  printf(cf"#mem_read_address: ${mem_read_address}\n")
-  printf(cf"#mem_write_valid: ${mem_write_valid}\n")
-  printf(cf"#mem_write_address: ${mem_write_address}\n")
-  printf(cf"#mem_write_data: ${mem_write_data}\n")
-  printf(cf"#consumer_read_ready: ${consumer_read_ready}\n")
-  printf(cf"#consumer_read_data: ${consumer_read_data}\n")
-  printf(cf"#consumer_write_ready: ${consumer_write_ready}\n")
-  printf(cf"#channel_serving_consumer: ${channel_serving_consumer}\n")
-  printf(cf"#current_consumer: ${current_consumer}\n")
+  // // Add debug printing
+  // printf("#### Module Internal State ####\n")
+  // printf(cf"#controller_state: ${controller_state}\n")
+  // printf(cf"#mem_read_valid: ${mem_read_valid}\n")
+  // printf(cf"#mem_read_address: ${mem_read_address}\n")
+  // printf(cf"#mem_write_valid: ${mem_write_valid}\n")
+  // printf(cf"#mem_write_address: ${mem_write_address}\n")
+  // printf(cf"#mem_write_data: ${mem_write_data}\n")
+  // printf(cf"#consumer_read_ready: ${consumer_read_ready}\n")
+  // printf(cf"#consumer_read_data: ${consumer_read_data}\n")
+  // printf(cf"#consumer_write_ready: ${consumer_write_ready}\n")
+  // printf(cf"#channel_serving_consumer: ${channel_serving_consumer}\n")
+  // printf(cf"#current_consumer: ${current_consumer}\n")
 
   when(!reset.asBool) {
     // For each channel, we handle processing concurrently
@@ -95,7 +95,9 @@ class Controller(
 
           val first_read_idx  = PriorityEncoder(read_signals)
           val first_write_idx = PriorityEncoder(write_signals)
-          when(read_signals.asUInt > 0.U && first_read_idx < first_write_idx) {
+          // printf("#first_read_idx: %b, first_write_idx: %b\n", first_read_idx, first_write_idx)
+
+          when(read_signals.asUInt > 0.U && first_read_idx <= first_write_idx) {
             val read_address = io.consumer_read_addr_receiver(first_read_idx).bits
 
             channel_serving_consumer(first_read_idx) := true.B
@@ -137,16 +139,16 @@ class Controller(
           }
         }
         is(ControlState.READ_RELAYING) {
-          when(!io.consumer_read_addr_receiver(i).valid) {
+          when(!io.consumer_read_addr_receiver(current_consumer(i)).valid) {
             channel_serving_consumer(current_consumer(i)) := false.B
-            consumer_read_ready(i)                        := false.B
+            consumer_read_ready(current_consumer(i))      := false.B
             controller_state(i)                           := ControlState.IDLE
           }
         }
         is(ControlState.WRITE_RELAYING) {
-          when(!io.consumer_write_receiver(i).valid) {
+          when(!io.consumer_write_receiver(current_consumer(i)).valid) {
             channel_serving_consumer(current_consumer(i)) := false.B
-            consumer_write_ready(i)                       := false.B
+            consumer_write_ready(current_consumer(i))     := false.B
             controller_state(i)                           := ControlState.IDLE
           }
         }

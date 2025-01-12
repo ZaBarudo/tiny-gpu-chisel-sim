@@ -31,7 +31,7 @@ class ControllerModel(AddrBits: Int = 8, DataBits: Int = 16, NumConsumers: Int =
     mem_write_ready:      Array[Boolean]
   ): Unit = {
     // Update model state for each channel
-    for (i <- 0 until 1) { // Assuming NumChannels = 1
+    for (i <- 0 until NumChannels) {
       controller_state(i) match {
         case ControlState.IDLE =>
           // Follow the original verilog implementation
@@ -88,20 +88,20 @@ class ControllerModel(AddrBits: Int = 8, DataBits: Int = 16, NumConsumers: Int =
       }
     }
 
-    // Debug printing
-    println("=== Model Internal State ===")
-    println(s"-controller_state: ${controller_state.mkString(", ")}")
-    println(s"-mem_read_valid: ${mem_read_valid.mkString(", ")}")
-    println(s"-mem_read_address: ${mem_read_address.mkString(", ")}")
-    println(s"-mem_write_valid: ${mem_write_valid.mkString(", ")}")
-    println(s"-mem_write_address: ${mem_write_address.mkString(", ")}")
-    println(s"-mem_write_data: ${mem_write_data.mkString(", ")}")
-    println(s"-consumer_read_ready: ${consumer_read_ready.mkString(", ")}")
-    println(s"-consumer_read_data: ${consumer_read_data.mkString(", ")}")
-    println(s"-consumer_write_ready: ${consumer_write_ready.mkString(", ")}")
-    println(s"-channel_serving_consumer: ${channel_serving_consumer.mkString(", ")}")
-    println(s"-current_consumer: ${current_consumer.mkString(", ")}")
-    println("==================\n")
+    // // Debug printing
+    // println("=== Model Internal State ===")
+    // println(s"-controller_state: ${controller_state.mkString(", ")}")
+    // println(s"-mem_read_valid: ${mem_read_valid.mkString(", ")}")
+    // println(s"-mem_read_address: ${mem_read_address.mkString(", ")}")
+    // println(s"-mem_write_valid: ${mem_write_valid.mkString(", ")}")
+    // println(s"-mem_write_address: ${mem_write_address.mkString(", ")}")
+    // println(s"-mem_write_data: ${mem_write_data.mkString(", ")}")
+    // println(s"-consumer_read_ready: ${consumer_read_ready.mkString(", ")}")
+    // println(s"-consumer_read_data: ${consumer_read_data.mkString(", ")}")
+    // println(s"-consumer_write_ready: ${consumer_write_ready.mkString(", ")}")
+    // println(s"-channel_serving_consumer: ${channel_serving_consumer.mkString(", ")}")
+    // println(s"-current_consumer: ${current_consumer.mkString(", ")}")
+    // println("==================\n")
   }
 
   def reset(): Unit = {
@@ -165,15 +165,15 @@ class ControllerSpec extends AnyFreeSpec with Matchers {
 
           dut.clock.step()
 
-          println("\n\n=== Input Signals ===")
-          println(s"consumer_read_valid: ${consumer_read_valid.mkString(", ")}")
-          println(s"consumer_read_addr: ${consumer_read_addr.mkString(", ")}")
-          println(s"consumer_write_valid: ${consumer_write_valid.mkString(", ")}")
-          println(s"consumer_write_addr: ${consumer_write_addr.mkString(", ")}")
-          println(s"consumer_write_data: ${consumer_write_data.mkString(", ")}")
-          println(s"mem_read_ready: ${mem_read_ready.mkString(", ")}")
-          println(s"mem_read_data: ${mem_read_data.mkString(", ")}")
-          println(s"mem_write_ready: ${mem_write_ready.mkString(", ")}")
+          // println("\n\n=== Input Signals ===")
+          // println(s"consumer_read_valid: ${consumer_read_valid.mkString(", ")}")
+          // println(s"consumer_read_addr: ${consumer_read_addr.mkString(", ")}")
+          // println(s"consumer_write_valid: ${consumer_write_valid.mkString(", ")}")
+          // println(s"consumer_write_addr: ${consumer_write_addr.mkString(", ")}")
+          // println(s"consumer_write_data: ${consumer_write_data.mkString(", ")}")
+          // println(s"mem_read_ready: ${mem_read_ready.mkString(", ")}")
+          // println(s"mem_read_data: ${mem_read_data.mkString(", ")}")
+          // println(s"mem_write_ready: ${mem_write_ready.mkString(", ")}")
 
           // Update model
           controllerModel.update(
