@@ -51,6 +51,7 @@ class Core(
       })
     )
 
+    // debug outputs
     val core_state = Output(CoreState())
     val current_pc = Output(UInt(8.W))
   })

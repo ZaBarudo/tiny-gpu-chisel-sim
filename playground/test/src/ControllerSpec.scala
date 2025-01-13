@@ -8,7 +8,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 class ControllerModel(AddrBits: Int = 8, DataBits: Int = 16, NumConsumers: Int = 4, NumChannels: Int = 1) {
-  var controller_state         = Array.fill(3)(ControlState.IDLE)
+  var controller_state         = Array.fill(NumChannels)(ControlState.IDLE)
   var mem_read_valid           = Array.fill(NumChannels)(false)
   var mem_read_address         = Array.fill(NumChannels)(0)
   var mem_write_valid          = Array.fill(NumChannels)(false)
@@ -104,19 +104,19 @@ class ControllerModel(AddrBits: Int = 8, DataBits: Int = 16, NumConsumers: Int =
     // println("==================\n")
   }
 
-  def reset(): Unit = {
-    controller_state = Array.fill(3)(ControlState.IDLE)
-    mem_read_valid = Array.fill(1)(false)
-    mem_read_address = Array.fill(1)(0)
-    mem_write_valid = Array.fill(1)(false)
-    mem_write_address = Array.fill(1)(0)
-    mem_write_data = Array.fill(1)(0)
-    consumer_read_ready = Array.fill(4)(false)
-    consumer_read_data = Array.fill(4)(0)
-    consumer_write_ready = Array.fill(4)(false)
-    channel_serving_consumer = Array.fill(4)(false)
-    current_consumer = Array.fill(1)(0)
-  }
+  // def reset(): Unit = {
+  //   controller_state = Array.fill(3)(ControlState.IDLE)
+  //   mem_read_valid = Array.fill(1)(false)
+  //   mem_read_address = Array.fill(1)(0)
+  //   mem_write_valid = Array.fill(1)(false)
+  //   mem_write_address = Array.fill(1)(0)
+  //   mem_write_data = Array.fill(1)(0)
+  //   consumer_read_ready = Array.fill(4)(false)
+  //   consumer_read_data = Array.fill(4)(0)
+  //   consumer_write_ready = Array.fill(4)(false)
+  //   channel_serving_consumer = Array.fill(4)(false)
+  //   current_consumer = Array.fill(1)(0)
+  // }
 }
 
 class ControllerSpec extends AnyFreeSpec with Matchers {

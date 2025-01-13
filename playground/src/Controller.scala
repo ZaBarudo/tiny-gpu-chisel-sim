@@ -61,7 +61,7 @@ class Controller(
   val consumer_write_ready = RegInit(VecInit(Seq.fill(NumConsumers)(false.B)))
 
   val current_consumer = RegInit(VecInit(Seq.fill(NumChannels)(0.U(log2Ceil(NumConsumers).W))))
-  val controller_state = RegInit(VecInit(Seq.fill(3)(ControlState.IDLE)))
+  val controller_state = RegInit(VecInit(Seq.fill(NumChannels)(ControlState.IDLE)))
 
   val channel_serving_consumer = RegInit(VecInit(Seq.fill(NumConsumers)(false.B)))
 

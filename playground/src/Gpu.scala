@@ -43,6 +43,27 @@ class Gpu(
     )
   })
 
+  val coreOutputs = Wire(
+    Vec(
+      NumCores,
+      new Bundle {
+        val done = Bool()
+
+        val program_mem_read_receiver = Flipped(new DecoupledIO(UInt(ProgramMemAddrBits.W)))
+
+        val data_mem_read_receiver = Vec(ThreadsPerBlock, Flipped(new DecoupledIO(UInt(DataMemAddrBits.W))))
+
+        val data_mem_write_receiver = Vec(
+          ThreadsPerBlock,
+          Flipped(DecoupledIO(new Bundle {
+            val address = UInt(DataMemAddrBits.W)
+            val data    = UInt(DataMemDataBits.W)
+          }))
+        )
+      }
+    )
+  )
+
 // Control
   val thread_count = RegInit(0.U(8.W))
 
@@ -62,6 +83,13 @@ class Gpu(
   data_memory_controller.io.mem_read_data := io.data_mem_read_data
   data_memory_controller.io.mem_read_sender <> io.data_mem_read_sender
   data_memory_controller.io.mem_write_sender <> io.data_mem_write_sender
+  for (i <- 0 until NumCores) {
+    for (j <- 0 until ThreadsPerBlock) {
+      val mem_idx = i * ThreadsPerBlock + j
+      data_memory_controller.io.consumer_read_addr_receiver(mem_idx) <> coreOutputs(i).data_mem_read_receiver(j)
+      data_memory_controller.io.consumer_write_receiver(mem_idx) <> coreOutputs(i).data_mem_write_receiver(j)
+    }
+  }
 
   // Program Memory Controller (read only)
   val program_memory_controller = Module(
@@ -69,11 +97,17 @@ class Gpu(
   )
   program_memory_controller.io.mem_read_data := io.program_mem_read_data
   program_memory_controller.io.mem_read_sender <> io.program_mem_read_sender
+  for (i <- 0 until NumCores) {
+    coreOutputs(i).program_mem_read_receiver <> program_memory_controller.io.consumer_read_addr_receiver(i)
+  }
 
-  // Dispatcher inputs (2/3)
+  // Dispatcher inputs (3/3)
   val dispatcher = Module(new Dispatch(NumCores, ThreadsPerBlock))
   dispatcher.io.start        := io.start
   dispatcher.io.thread_count := dcr.io.thread_count
+  for (i <- 0 until NumCores) {
+    dispatcher.io.core_done(i) := coreOutputs(i).done
+  }
 
   // Compute Cores
   for (i <- 0 until NumCores) {
@@ -84,18 +118,22 @@ class Gpu(
     core.io.block_id     := dispatcher.io.core_block_id(i)
     core.io.thread_count := dispatcher.io.core_thread_count(i)
 
-    core.io.program_mem_read_address_sender <> program_memory_controller.io.consumer_read_addr_receiver(i)
+    // program mem I/O
     core.io.program_mem_read_data := program_memory_controller.io.consumer_read_data(i)
+    coreOutputs(i).program_mem_read_receiver <> core.io.program_mem_read_address_sender
 
+    // data mem I/O
+    coreOutputs(i).data_mem_read_receiver <> core.io.data_mem_read_address_sender
+    coreOutputs(i).data_mem_write_receiver <> core.io.data_mem_write_sender
     for (j <- 0 until ThreadsPerBlock) {
       val lsu_index = i * ThreadsPerBlock + j
       core.io.data_mem_read_data(j) := data_memory_controller.io.consumer_read_data(lsu_index)
-      core.io.data_mem_read_address_sender <> data_memory_controller.io.consumer_read_addr_receiver(lsu_index)
-      core.io.data_mem_write_sender <> data_memory_controller.io.consumer_write_receiver(lsu_index)
+      core.io.data_mem_read_address_sender(j) <> data_memory_controller.io.consumer_read_addr_receiver(lsu_index)
+      core.io.data_mem_write_sender(j) <> data_memory_controller.io.consumer_write_receiver(lsu_index)
     }
 
-    // Dispatcher inputs (3/3)
-    dispatcher.io.core_done(i) := core.io.done
+    coreOutputs(i).done := core.io.done
+
   }
 
   io.done := dispatcher.io.done
