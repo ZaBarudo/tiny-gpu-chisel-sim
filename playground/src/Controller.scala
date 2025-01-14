@@ -97,7 +97,8 @@ class Controller(
           // While this channel is idle, cycle through consumers looking for one with a pending request
           // Once we find a pending request, pick it up with this channel and stop looking for requests
           val read_signals  = Wire(Vec(NumConsumers, Bool()))
-          val write_signals = Wire(Vec(NumConsumers, Bool()))
+          // val write_signals = Wire(Vec(NumConsumers, Bool()))
+          val write_signals = VecInit(Seq.fill(NumConsumers)(false.B))
           for (j <- 0 until NumConsumers) {
             read_signals(j) := io.consumer_read_addr_receiver(j).valid && !channel_serving_consumer(j)
             // write_signals(j) := io.consumer_write_receiver(j).valid && !channel_serving_consumer(j)

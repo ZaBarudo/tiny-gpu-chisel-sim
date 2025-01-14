@@ -82,18 +82,20 @@ class Gpu(
   val data_memory_controller = Module(new Controller(DataMemAddrBits, DataMemDataBits, NumLSUs, DataMemNumChannels))
   data_memory_controller.io.mem_read_data := io.data_mem_read_data
   data_memory_controller.io.mem_read_sender <> io.data_mem_read_sender
-  data_memory_controller.io.mem_write_sender <> io.data_mem_write_sender
+  data_memory_controller.io.mem_write_sender.map(_ <> io.data_mem_write_sender)
   for (i <- 0 until NumCores) {
     for (j <- 0 until ThreadsPerBlock) {
       val mem_idx = i * ThreadsPerBlock + j
       data_memory_controller.io.consumer_read_addr_receiver(mem_idx) <> coreOutputs(i).data_mem_read_receiver(j)
-      data_memory_controller.io.consumer_write_receiver(mem_idx) <> coreOutputs(i).data_mem_write_receiver(j)
+      data_memory_controller.io.consumer_write_receiver.map(
+        _.apply(mem_idx) <> coreOutputs(i).data_mem_write_receiver(j)
+      )
     }
   }
 
   // Program Memory Controller (read only)
   val program_memory_controller = Module(
-    new Controller(ProgramMemAddrBits, ProgramMemDataBits, NumFetchers, ProgramMemNumChannels, 0)
+    new Controller(ProgramMemAddrBits, ProgramMemDataBits, NumFetchers, ProgramMemNumChannels, false)
   )
   program_memory_controller.io.mem_read_data := io.program_mem_read_data
   program_memory_controller.io.mem_read_sender <> io.program_mem_read_sender
@@ -129,7 +131,8 @@ class Gpu(
       val lsu_index = i * ThreadsPerBlock + j
       core.io.data_mem_read_data(j) := data_memory_controller.io.consumer_read_data(lsu_index)
       core.io.data_mem_read_address_sender(j) <> data_memory_controller.io.consumer_read_addr_receiver(lsu_index)
-      core.io.data_mem_write_sender(j) <> data_memory_controller.io.consumer_write_receiver(lsu_index)
+      // core.io.data_mem_write_sender(j) <> data_memory_controller.io.consumer_write_receiver(lsu_index)
+      data_memory_controller.io.consumer_write_receiver.map(core.io.data_mem_write_sender(j) <> _.apply(lsu_index))
     }
 
     coreOutputs(i).done := core.io.done
