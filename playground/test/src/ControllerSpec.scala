@@ -152,15 +152,21 @@ class ControllerSpec extends AnyFreeSpec with Matchers {
           for (i <- 0 until NumConsumers) {
             dut.io.consumer_read_addr_receiver(i).valid.poke(consumer_read_valid(i).B)
             dut.io.consumer_read_addr_receiver(i).bits.poke(consumer_read_addr(i).U)
-            dut.io.consumer_write_receiver(i).valid.poke(consumer_write_valid(i).B)
-            dut.io.consumer_write_receiver(i).bits.address.poke(consumer_write_addr(i).U)
-            dut.io.consumer_write_receiver(i).bits.data.poke(consumer_write_data(i).U)
+            // dut.io.consumer_write_receiver(i).valid.poke(consumer_write_valid(i).B)
+            // dut.io.consumer_write_receiver(i).bits.address.poke(consumer_write_addr(i).U)
+            // dut.io.consumer_write_receiver(i).bits.data.poke(consumer_write_data(i).U)
+            dut.io.consumer_write_receiver.map(receiver => {
+              receiver(i).valid.poke(consumer_write_valid(i).B)
+              receiver(i).bits.address.poke(consumer_write_addr(i).U)
+              receiver(i).bits.data.poke(consumer_write_data(i).U)
+            })
           }
 
           for (i <- 0 until NumChannels) {
             dut.io.mem_read_sender(i).ready.poke(mem_read_ready(i).B)
             dut.io.mem_read_data(i).poke(mem_read_data(i).U)
-            dut.io.mem_write_sender(i).ready.poke(mem_write_ready(i).B)
+            // dut.io.mem_write_sender(i).ready.poke(mem_write_ready(i).B)
+            dut.io.mem_write_sender.map(_.apply(i).ready.poke(mem_write_ready(i).B))
           }
 
           dut.clock.step()
@@ -191,17 +197,25 @@ class ControllerSpec extends AnyFreeSpec with Matchers {
           for (i <- 0 until NumConsumers) {
             dut.io.consumer_read_addr_receiver(i).ready.expect(controllerModel.consumer_read_ready(i).B)
             dut.io.consumer_read_data(i).expect(controllerModel.consumer_read_data(i).U)
-            dut.io.consumer_write_receiver(i).ready.expect(controllerModel.consumer_write_ready(i).B)
+            // dut.io.consumer_write_receiver(i).ready.expect(controllerModel.consumer_write_ready(i).B)
+            dut.io.consumer_write_receiver.map(_.apply(i).ready.expect(controllerModel.consumer_write_ready(i).B))
           }
 
           for (i <- 0 until NumChannels) {
             dut.io.mem_read_sender(i).valid.expect(controllerModel.mem_read_valid(i).B)
             dut.io.mem_read_sender(i).bits.expect(controllerModel.mem_read_address(i).U)
-            dut.io.mem_write_sender(i).valid.expect(controllerModel.mem_write_valid(i).B)
-            if (controllerModel.mem_write_valid(i)) {
-              dut.io.mem_write_sender(i).bits.address.expect(controllerModel.mem_write_address(i).U)
-              dut.io.mem_write_sender(i).bits.data.expect(controllerModel.mem_write_data(i).U)
-            }
+            // dut.io.mem_write_sender(i).valid.expect(controllerModel.mem_write_valid(i).B)
+            // if (controllerModel.mem_write_valid(i)) {
+            //   dut.io.mem_write_sender(i).bits.address.expect(controllerModel.mem_write_address(i).U)
+            //   dut.io.mem_write_sender(i).bits.data.expect(controllerModel.mem_write_data(i).U)
+            // }
+            dut.io.mem_write_sender.map(sender => {
+              sender(i).valid.expect(controllerModel.mem_write_valid(i).B)
+              if (controllerModel.mem_write_valid(i)) {
+                sender(i).bits.address.expect(controllerModel.mem_write_address(i).U)
+                sender(i).bits.data.expect(controllerModel.mem_write_data(i).U)
+              }
+            })
           }
 
           cnt += 1

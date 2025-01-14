@@ -20,7 +20,7 @@ class Controller(
   DataBits:     Int = 16,
   NumConsumers: Int = 4,
   NumChannels:  Int = 1,
-  WriteEnable:  Int = 1)
+  WriteEnable:  Boolean = true)
     extends Module {
   // TODO: Use decoupledIO interface for consumer and memory
   val io = IO(new Bundle {
@@ -28,25 +28,35 @@ class Controller(
     val consumer_read_addr_receiver = Vec(NumConsumers, Flipped(new DecoupledIO(UInt(AddrBits.W))))
     val consumer_read_data          = Output(Vec(NumConsumers, UInt(DataBits.W)))
 
-    val consumer_write_receiver = Vec(
-      NumConsumers,
-      Flipped(DecoupledIO(new Bundle {
-        val address = UInt(AddrBits.W)
-        val data    = UInt(DataBits.W)
-      }))
-    )
+    val consumer_write_receiver =
+      if (WriteEnable)
+        Some(
+          Vec(
+            NumConsumers,
+            Flipped(DecoupledIO(new Bundle {
+              val address = UInt(AddrBits.W)
+              val data    = UInt(DataBits.W)
+            }))
+          )
+        )
+      else None
 
     // Memory Interface (Data / Program)
     val mem_read_sender = Vec(NumChannels, new DecoupledIO(UInt(AddrBits.W)))
     val mem_read_data   = Input(Vec(NumChannels, UInt(DataBits.W)))
 
-    val mem_write_sender = Vec(
-      NumChannels,
-      DecoupledIO(new Bundle {
-        val address = UInt(AddrBits.W)
-        val data    = UInt(DataBits.W)
-      })
-    )
+    val mem_write_sender =
+      if (WriteEnable)
+        Some(
+          Vec(
+            NumChannels,
+            DecoupledIO(new Bundle {
+              val address = UInt(AddrBits.W)
+              val data    = UInt(DataBits.W)
+            })
+          )
+        )
+      else None
   })
 
   val mem_read_valid   = RegInit(VecInit(Seq.fill(NumChannels)(false.B)))
@@ -89,8 +99,11 @@ class Controller(
           val read_signals  = Wire(Vec(NumConsumers, Bool()))
           val write_signals = Wire(Vec(NumConsumers, Bool()))
           for (j <- 0 until NumConsumers) {
-            read_signals(j)  := io.consumer_read_addr_receiver(j).valid && !channel_serving_consumer(j)
-            write_signals(j) := io.consumer_write_receiver(j).valid && !channel_serving_consumer(j)
+            read_signals(j) := io.consumer_read_addr_receiver(j).valid && !channel_serving_consumer(j)
+            // write_signals(j) := io.consumer_write_receiver(j).valid && !channel_serving_consumer(j)
+            io.consumer_write_receiver.map(write_receiver =>
+              write_signals(j) := write_receiver(j).valid && !channel_serving_consumer(j)
+            )
           }
 
           val first_read_idx  = PriorityEncoder(read_signals)
@@ -108,8 +121,10 @@ class Controller(
 
             controller_state(i) := ControlState.READ_WAITING
           }.elsewhen(write_signals.asUInt > 0.U) {
-            val write_address = io.consumer_write_receiver(first_write_idx).bits.address
-            val write_data    = io.consumer_write_receiver(first_write_idx).bits.data
+            // val write_address = io.consumer_write_receiver(first_write_idx).bits.address
+            // val write_data    = io.consumer_write_receiver(first_write_idx).bits.data
+            val write_address = io.consumer_write_receiver.map(_.apply(first_write_idx).bits.address).getOrElse(0.U)
+            val write_data    = io.consumer_write_receiver.map(_.apply(first_write_idx).bits.data).getOrElse(0.U)
 
             channel_serving_consumer(first_write_idx) := true.B
             current_consumer(i)                       := first_write_idx
@@ -132,7 +147,9 @@ class Controller(
         }
         is(ControlState.WRITE_WAITING) {
           // Wait for response from memory for pending write request
-          when(io.mem_write_sender(i).ready) {
+          val write_ready = io.mem_write_sender.map(_.apply(i).ready).getOrElse(false.B)
+          // when(io.mem_write_sender(i).ready) {
+          when(write_ready) {
             mem_write_valid(i)                        := false.B
             consumer_write_ready(current_consumer(i)) := true.B
             controller_state(i)                       := ControlState.WRITE_RELAYING
@@ -146,7 +163,9 @@ class Controller(
           }
         }
         is(ControlState.WRITE_RELAYING) {
-          when(!io.consumer_write_receiver(current_consumer(i)).valid) {
+          val write_valid = io.consumer_write_receiver.map(!_.apply(current_consumer(i)).valid).getOrElse(false.B)
+          // when(!io.consumer_write_receiver(current_consumer(i)).valid) {
+          when(write_valid) {
             channel_serving_consumer(current_consumer(i)) := false.B
             consumer_write_ready(current_consumer(i))     := false.B
             controller_state(i)                           := ControlState.IDLE
@@ -159,14 +178,20 @@ class Controller(
   for (i <- 0 until NumConsumers) {
     io.consumer_read_addr_receiver(i).ready := consumer_read_ready(i)
     io.consumer_read_data(i)                := consumer_read_data(i)
-    io.consumer_write_receiver(i).ready     := consumer_write_ready(i)
+    // io.consumer_write_receiver(i).ready     := consumer_write_ready(i)
+    io.consumer_write_receiver.map(_.apply(i).ready := consumer_write_ready(i))
   }
 
   for (i <- 0 until NumChannels) {
-    io.mem_read_sender(i).valid         := mem_read_valid(i)
-    io.mem_read_sender(i).bits          := mem_read_address(i)
-    io.mem_write_sender(i).valid        := mem_write_valid(i)
-    io.mem_write_sender(i).bits.address := mem_write_address(i)
-    io.mem_write_sender(i).bits.data    := mem_write_data(i)
+    io.mem_read_sender(i).valid := mem_read_valid(i)
+    io.mem_read_sender(i).bits  := mem_read_address(i)
+    // io.mem_write_sender(i).valid        := mem_write_valid(i)
+    // io.mem_write_sender(i).bits.address := mem_write_address(i)
+    // io.mem_write_sender(i).bits.data    := mem_write_data(i)
+    io.mem_write_sender.map(sender => {
+      sender(i).valid        := mem_write_valid(i)
+      sender(i).bits.address := mem_write_address(i)
+      sender(i).bits.data    := mem_write_data(i)
+    })
   }
 }
