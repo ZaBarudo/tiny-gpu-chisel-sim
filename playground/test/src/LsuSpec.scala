@@ -8,6 +8,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 import statecode.CoreState
+import statecode.LSUState
 
 class LsuModel {
   var lsu_state     = LSUState.IDLE

@@ -3,8 +3,8 @@ package scheduler
 import chisel3._
 import chisel3.util._
 import statecode.CoreState
-import lsu.LSUState
-import fetcher.FetcherState
+import statecode.LSUState
+import statecode.FetcherState
 
 // SCHEDULER
 // > Manages the entire control flow of a single compute core processing 1 block

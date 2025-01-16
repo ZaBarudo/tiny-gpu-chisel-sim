@@ -7,6 +7,8 @@ import chisel3.simulator.EphemeralSimulator._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
+import statecode.ControlState
+
 class ControllerModel(AddrBits: Int = 8, DataBits: Int = 16, NumConsumers: Int = 4, NumChannels: Int = 1) {
   var controller_state         = Array.fill(NumChannels)(ControlState.IDLE)
   var mem_read_valid           = Array.fill(NumChannels)(false)

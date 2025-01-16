@@ -4,12 +4,7 @@ import chisel3._
 import chisel3.util._
 
 import statecode.CoreState
-
-object FetcherState extends ChiselEnum {
-  val IDLE     = Value("b000".U)
-  val FETCHING = Value("b001".U)
-  val FETCHED  = Value("b010".U)
-}
+import statecode.FetcherState
 
 class Fetcher(ProgramMemAddrBits: Int = 8, ProgramMemDataBits: Int = 16) extends Module {
   val io = IO(new Bundle {

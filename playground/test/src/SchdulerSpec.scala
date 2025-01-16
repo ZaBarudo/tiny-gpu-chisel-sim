@@ -8,8 +8,8 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 import statecode.CoreState
-import lsu.LSUState
-import fetcher.FetcherState
+import statecode.LSUState
+import statecode.FetcherState
 
 class SchedulerModel(ThreadsPerBlock: Int = 4) {
   var current_pc = 0

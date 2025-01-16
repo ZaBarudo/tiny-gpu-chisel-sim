@@ -8,6 +8,7 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 import statecode.CoreState
+import statecode.FetcherState
 
 class FetcherModel {
   var fetcher_state = FetcherState.IDLE

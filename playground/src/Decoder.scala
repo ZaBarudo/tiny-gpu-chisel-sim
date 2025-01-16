@@ -6,20 +6,7 @@ import chisel3.util._
 import statecode.CoreState
 import statecode.AluOpCode
 import statecode.RegInputOp
-
-object DecoderState extends ChiselEnum {
-  val NOP   = Value("b0000".U)
-  val BRnzp = Value("b0001".U)
-  val CMP   = Value("b0010".U)
-  val ADD   = Value("b0011".U)
-  val SUB   = Value("b0100".U)
-  val MUL   = Value("b0101".U)
-  val DIV   = Value("b0110".U)
-  val LDR   = Value("b0111".U)
-  val STR   = Value("b1000".U)
-  val CONST = Value("b1001".U)
-  val RET   = Value("b1111".U)
-}
+import statecode.DecoderState
 
 class Decoder extends Module {
   val io = IO(new Bundle {

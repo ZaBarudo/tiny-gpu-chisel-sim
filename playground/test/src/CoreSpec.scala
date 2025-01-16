@@ -8,8 +8,8 @@ import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 import statecode.CoreState
-import fetcher.FetcherState
-import lsu.LSUState
+import statecode.FetcherState
+import statecode.LSUState
 import statecode.RegInputOp
 import statecode.AluOpCode
 

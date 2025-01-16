@@ -3,10 +3,7 @@ package lsu
 import chisel3._
 import chisel3.util._
 import statecode.CoreState
-
-object LSUState extends ChiselEnum {
-  val IDLE, REQUESTING, WAITING, DONE = Value
-}
+import statecode.LSUState
 
 class MemLoadStoreUnit extends Module {
   val io = IO(new Bundle {

@@ -3,13 +3,7 @@ package controller
 import chisel3._
 import chisel3.util._
 
-object ControlState extends ChiselEnum {
-  val IDLE           = Value("b000".U)
-  val READ_WAITING   = Value("b010".U)
-  val WRITE_WAITING  = Value("b011".U)
-  val READ_RELAYING  = Value("b100".U)
-  val WRITE_RELAYING = Value("b101".U)
-}
+import statecode.ControlState
 
 // MEMORY CONTROLLER
 // > Receives memory requests from all cores
