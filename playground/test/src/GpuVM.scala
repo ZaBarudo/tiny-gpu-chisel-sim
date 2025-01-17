@@ -1,5 +1,7 @@
 package gpu
 
+import scala.collection.mutable.ArrayBuffer
+
 // First, let's define our Token types
 sealed trait Token
 object Token {
@@ -10,7 +12,9 @@ object Token {
   // case object Comma  extends Token
   case object Const  extends Token
   case object Nop    extends Token
-  case object Brnzp  extends Token
+  case object Brn    extends Token
+  case object Brz    extends Token
+  case object Brp    extends Token
   case object Cmp    extends Token
   case object Add    extends Token
   case object Sub    extends Token
@@ -80,7 +84,9 @@ class Lexer {
       // case ","                                    => Comma
       case "const"                                => Const
       case "nop"                                  => Nop
-      case "brn"                                  => Brnzp
+      case "brn"                                  => Brn
+      case "brz"                                  => Brz
+      case "brp"                                  => Brp
       case "cmp"                                  => Cmp
       case "add"                                  => Add
       case "sub"                                  => Sub
@@ -253,11 +259,25 @@ class AsmParser(tokens: Vector[Token]) {
           val instruction = new Instruction(Token.Nop, Vector.empty)
           instructions = instructions :+ instruction
         }
-        case Token.Brnzp          => {
+        case Token.Brn            => {
           val label       = consume()
-          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brnzp expr")
+          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brn expr")
           val instruction =
-            new Instruction(Token.Brnzp, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
+            new Instruction(Token.Brn, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
+          instructions = instructions :+ instruction
+        }
+        case Token.Brz            => {
+          val label       = consume()
+          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brz expr")
+          val instruction =
+            new Instruction(Token.Brz, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
+          instructions = instructions :+ instruction
+        }
+        case Token.Brp            => {
+          val label       = consume()
+          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brp expr")
+          val instruction =
+            new Instruction(Token.Brp, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
           instructions = instructions :+ instruction
         }
         case Token.LabelDef(name) => {
@@ -294,11 +314,15 @@ class AsmParser(tokens: Vector[Token]) {
     }
 
     // post process labels
-    instructions.filter(_.getOp == Token.Brnzp).foreach { inst =>
-      val label = inst.getArgs.head.asInstanceOf[RegType.LabelUse].name
-      val idx   = labels(label)
-      inst.setArgs(Vector(RegType.Imm(idx)))
-    }
+    instructions
+      .filter(inst =>
+        inst.getOp == Token.Brn || inst.getOp == Token.Brn || inst.getOp == Token.Brz || inst.getOp == Token.Brp
+      )
+      .foreach { inst =>
+        val label = inst.getArgs.head.asInstanceOf[RegType.LabelUse].name
+        val idx   = labels(label)
+        inst.setArgs(Vector(RegType.Imm(idx)))
+      }
   }
 
   // Getter methods
@@ -415,6 +439,124 @@ object AsmParserTest2 {
 
     parser.getInstructions.zipWithIndex.foreach { case (inst, i) =>
       println(s"Instruction $i: ${inst.getOp} ${inst.getArgs.mkString(", ")}")
+    }
+  }
+}
+
+class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4) {
+  val NumOfThread     = NumCores * ThreadsPerBlock
+  val BlockIdxOffset  = 13
+  val BlockDimOffset  = 14
+  val ThreadIdxOffset = 15
+
+  private var registers: Vector[ArrayBuffer[Int]] = Vector.fill(NumOfThread)(ArrayBuffer.fill(16)(0))
+  private var memory:    ArrayBuffer[Int]         = ArrayBuffer.empty
+
+  private var pc:  Int          = 0
+  private var nzp: Seq[Boolean] = Seq.fill(3)(false)
+
+  def init(dataArrays: Vector[Vector[Int]]): Unit = {
+    // Initialize blockIdx, blockDim, threadIdx for each thread's register file
+    for (blockId <- 0 until NumCores) {
+      for (threadId <- 0 until ThreadsPerBlock) {
+        val threadIdx = blockId * ThreadsPerBlock + threadId
+        registers(threadIdx)(BlockIdxOffset) = blockId
+        registers(threadIdx)(BlockDimOffset) = ThreadsPerBlock
+        registers(threadIdx)(ThreadIdxOffset) = threadId
+      }
+    }
+
+    // copy data arrays to memory
+    memory = ArrayBuffer.empty
+    dataArrays.foreach(memory.appendAll(_))
+  }
+
+  def run(instructions: Vector[Instruction]): Unit = {
+    while (pc < instructions.length) {
+      val inst = instructions(pc)
+      for (threadIdx <- 0 until NumOfThread) {
+        def nextPc(): Int = {
+          inst.getOp match {
+            case Token.Nop   => {
+              // do nothing
+            }
+            case Token.Brn   => {
+              val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+              if (nzp(0)) {
+                return labelIdx
+              }
+            }
+            case Token.Brz   => {
+              val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+              if (nzp(1)) {
+                return labelIdx
+              }
+            }
+            case Token.Brp   => {
+              val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+              if (nzp(2)) {
+                return labelIdx
+              }
+            }
+            case Token.Cmp   => {
+              val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+              val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              nzp = Seq(
+                registers(threadIdx)(s) > registers(threadIdx)(t),
+                registers(threadIdx)(s) == registers(threadIdx)(t),
+                registers(threadIdx)(s) < registers(threadIdx)(t)
+              )
+            }
+            case Token.Add   => {
+              val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+              val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+              registers(threadIdx)(d) = registers(threadIdx)(s) + registers(threadIdx)(t)
+            }
+            case Token.Sub   => {
+              val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+              val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+              registers(threadIdx)(d) = registers(threadIdx)(s) - registers(threadIdx)(t)
+            }
+            case Token.Mul   => {
+              val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+              val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+              registers(threadIdx)(d) = registers(threadIdx)(s) * registers(threadIdx)(t)
+            }
+            case Token.Div   => {
+              val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+              val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+              registers(threadIdx)(d) = registers(threadIdx)(s) / registers(threadIdx)(t)
+            }
+            case Token.Ldr   => {
+              val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+              val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              registers(threadIdx)(d) = memory(registers(threadIdx)(s))
+            }
+            case Token.Str   => {
+              val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+              val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              memory(registers(threadIdx)(s)) = registers(threadIdx)(t)
+            }
+            case Token.Const => {
+              val (reg, imm) =
+                (inst.getArgs.head.asInstanceOf[RegType.Reg].value, inst.getArgs.last.asInstanceOf[RegType.Imm].value)
+              registers(threadIdx)(reg) = imm
+            }
+            case Token.Ret   => {
+              return instructions.length
+            }
+            case _           => {
+              throw new Exception(s"Unrecognized instruction: ${inst.getOp}")
+            }
+          }
+          return pc + 1
+        }
+        pc = nextPc()
+      }
     }
   }
 }
