@@ -163,10 +163,10 @@ object RegType {
   // Keywords
   case class Imm(value: Int)        extends RegType
   case class Reg(value: Int)        extends RegType
-  case class BlockIdx()             extends RegType
-  case class BlockDim()             extends RegType
-  case class ThreadIdx()            extends RegType
   case class LabelUse(name: String) extends RegType
+  // case class BlockIdx()             extends RegType
+  // case class BlockDim()             extends RegType
+  // case class ThreadIdx()            extends RegType
 }
 
 class Instruction(op: Token, args: Vector[RegType]) {
@@ -179,6 +179,15 @@ class Instruction(op: Token, args: Vector[RegType]) {
 }
 
 class AsmParser(tokens: Vector[Token]) {
+  val BlockIdxOffset  = 13
+  val BlockDimOffset  = 14
+  val ThreadIdxOffset = 15
+
+  private var debug:            Boolean = false
+  def setDebug(debug: Boolean): Unit    = {
+    this.debug = debug
+  }
+
   private var threadCount:  Int                 = 0
   private var dataArrays:   Vector[Vector[Int]] = Vector.empty
   private var instructions: Vector[Instruction] = Vector.empty
@@ -196,9 +205,9 @@ class AsmParser(tokens: Vector[Token]) {
   def parseReg(reg: Token): RegType = {
     reg match {
       case Token.Register(number) => RegType.Reg(number)
-      case Token.BlockIdx         => RegType.BlockIdx()
-      case Token.BlockDim         => RegType.BlockDim()
-      case Token.ThreadIdx        => RegType.ThreadIdx()
+      case Token.BlockIdx         => RegType.Reg(BlockIdxOffset)
+      case Token.BlockDim         => RegType.Reg(BlockDimOffset)
+      case Token.ThreadIdx        => RegType.Reg(ThreadIdxOffset)
       case _                      => throw new IllegalArgumentException(s"Invalid register expression in token: $reg")
     }
   }
@@ -230,7 +239,9 @@ class AsmParser(tokens: Vector[Token]) {
   def parse(): Unit = {
     while (!isEof()) {
       val tok = consume()
-      // println(s"*Debug current token: $tok")
+      if (debug) {
+        println(s"*Debug current token: $tok")
+      }
       tok match {
         case Token.Thread         => {
           val num = consume()
@@ -313,7 +324,8 @@ class AsmParser(tokens: Vector[Token]) {
       }
     }
 
-    // post process labels
+    // post process:
+    // Turn labels into immediate values
     instructions
       .filter(inst =>
         inst.getOp == Token.Brn || inst.getOp == Token.Brn || inst.getOp == Token.Brz || inst.getOp == Token.Brp
@@ -323,6 +335,7 @@ class AsmParser(tokens: Vector[Token]) {
         val idx   = labels(label)
         inst.setArgs(Vector(RegType.Imm(idx)))
       }
+
   }
 
   // Getter methods
@@ -331,10 +344,8 @@ class AsmParser(tokens: Vector[Token]) {
   def getInstructions: Vector[Instruction] = instructions
 }
 
-object AsmParserTest1 {
-  def main(args: Array[String]): Unit = {
-
-    val matAddSrc = """
+object MatAddAsm {
+  val src = """
         .threads 8
         .data 0 1 2 3 4 5 6 7          ; matrix A (1 x 8)
         .data 0 1 2 3 4 5 6 7          ; matrix B (1 x 8)
@@ -359,24 +370,10 @@ object AsmParserTest1 {
 
         RET                            ; end of kernel
     """
-
-    val lexer  = new Lexer()
-    val parser = new AsmParser(lexer.tokenize(matAddSrc))
-
-    // parser.parse(input)
-
-    println("Thread count: " + parser.getThreadCount)
-    println("\nData arrays:")
-    parser.getDataArrays.zipWithIndex.foreach { case (array, i) =>
-      println(s"Array $i: ${array.mkString(", ")}")
-    }
-  }
 }
 
-object AsmParserTest2 {
-  def main(args: Array[String]): Unit = {
-
-    val matMulSrc = """
+object MatMulAsm {
+  val src = """
     .threads 4
     .data 1 2 3 4                  ; matrix A (2 x 2)
     .data 1 2 3 4                  ; matrix B (2 x 2)
@@ -421,9 +418,26 @@ object AsmParserTest2 {
 
     RET                            ; end of kernel
     """
+}
 
+object AsmParserTest1 {
+  def main(args: Array[String]): Unit = {
     val lexer  = new Lexer()
-    val tokens = lexer.tokenize(matMulSrc)
+    val parser = new AsmParser(lexer.tokenize(MatAddAsm.src))
+    parser.parse()
+
+    println("Thread count: " + parser.getThreadCount)
+    println("\nData arrays:")
+    parser.getDataArrays.zipWithIndex.foreach { case (array, i) =>
+      println(s"Array $i: ${array.mkString(", ")}")
+    }
+  }
+}
+
+object AsmParserTest2 {
+  def main(args: Array[String]): Unit = {
+    val lexer  = new Lexer()
+    val tokens = lexer.tokenize(MatMulAsm.src)
     tokens.foreach(println)
 
     val parser = new AsmParser(tokens)
@@ -443,17 +457,47 @@ object AsmParserTest2 {
   }
 }
 
-class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4) {
-  val NumOfThread     = NumCores * ThreadsPerBlock
-  val BlockIdxOffset  = 13
-  val BlockDimOffset  = 14
-  val ThreadIdxOffset = 15
+class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4, MemSize: Int = 256) {
+  private var debug:            Boolean = false
+  def setDebug(debug: Boolean): Unit    = {
+    this.debug = debug
+  }
+
+  val NumOfThread = NumCores * ThreadsPerBlock
 
   private var registers: Vector[ArrayBuffer[Int]] = Vector.fill(NumOfThread)(ArrayBuffer.fill(16)(0))
   private var memory:    ArrayBuffer[Int]         = ArrayBuffer.empty
 
-  private var pc:  Int          = 0
-  private var nzp: Seq[Boolean] = Seq.fill(3)(false)
+  private var pc:  Int                       = 0
+  private var nzp: ArrayBuffer[Seq[Boolean]] = ArrayBuffer.fill(NumOfThread)(Seq.fill(3)(false))
+
+  def getRegisters: Vector[ArrayBuffer[Int]] = registers
+  def getMemory:    ArrayBuffer[Int]         = memory
+
+  val BlockIdxOffset  = 13
+  val BlockDimOffset  = 14
+  val ThreadIdxOffset = 15
+
+  def printRegister(threadIdx: Int): Unit = {
+    print(s"Thread $threadIdx registers: [")
+    // registers(threadIdx).map(v => f"$v%3d").mkString(", ")
+    print(registers(threadIdx).foldLeft("")((acc, v) => acc + f"$v%3d, "))
+    println("]")
+  }
+
+  def printAllRegisters(): Unit = {
+    println("################## Registers ##################")
+    for (threadIdx <- 0 until NumOfThread) {
+      printRegister(threadIdx)
+    }
+    println()
+  }
+
+  def printMemory(): Unit = {
+    println("***************** Memory *****************")
+    memory.grouped(8).foreach(group => println(group.map(n => f"$n%4d").mkString(" ")))
+    println()
+  }
 
   def init(dataArrays: Vector[Vector[Int]]): Unit = {
     // Initialize blockIdx, blockDim, threadIdx for each thread's register file
@@ -467,13 +511,22 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4) {
     }
 
     // copy data arrays to memory
-    memory = ArrayBuffer.empty
-    dataArrays.foreach(memory.appendAll(_))
+    memory = ArrayBuffer.fill(MemSize)(0)
+    var offset = 0
+    for (array <- dataArrays) {
+      for (v <- array) {
+        memory(offset) = v
+        offset += 1
+      }
+    }
   }
 
   def run(instructions: Vector[Instruction]): Unit = {
     while (pc < instructions.length) {
       val inst = instructions(pc)
+      if (debug) {
+        println(s"*Debug current instruction: ${inst.getOp} ${inst.getArgs.mkString(", ")}")
+      }
       for (threadIdx <- 0 until NumOfThread) {
         def nextPc(): Int = {
           inst.getOp match {
@@ -482,26 +535,26 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4) {
             }
             case Token.Brn   => {
               val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
-              if (nzp(0)) {
+              if (nzp(threadIdx)(0)) {
                 return labelIdx
               }
             }
             case Token.Brz   => {
               val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
-              if (nzp(1)) {
+              if (nzp(threadIdx)(1)) {
                 return labelIdx
               }
             }
             case Token.Brp   => {
               val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
-              if (nzp(2)) {
+              if (nzp(threadIdx)(2)) {
                 return labelIdx
               }
             }
             case Token.Cmp   => {
               val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
               val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
-              nzp = Seq(
+              nzp(threadIdx) = Seq(
                 registers(threadIdx)(s) > registers(threadIdx)(t),
                 registers(threadIdx)(s) == registers(threadIdx)(t),
                 registers(threadIdx)(s) < registers(threadIdx)(t)
@@ -539,6 +592,9 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4) {
             case Token.Str   => {
               val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
               val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+              // println(
+              //   s"*Debug store: thread=$threadIdx, s=$s, t=$t, registers(threadIdx)(s)=${registers(threadIdx)(s)}, registers(threadIdx)(t)=${registers(threadIdx)(t)}"
+              // )
               memory(registers(threadIdx)(s)) = registers(threadIdx)(t)
             }
             case Token.Const => {
@@ -555,8 +611,37 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4) {
           }
           return pc + 1
         }
-        pc = nextPc()
+        val npc = nextPc()
+        // for each instruction, only update pc once
+        if (threadIdx == NumOfThread - 1) {
+          pc = npc
+        }
       }
     }
+  }
+}
+
+object GpuVMAddTest {
+  def main(args: Array[String]): Unit = {
+    val lexer  = new Lexer()
+    val tokens = lexer.tokenize(MatAddAsm.src)
+    val parser = new AsmParser(tokens)
+    parser.parse()
+
+    println("################## Parse result ##################\n")
+    parser.getDataArrays.foreach(println)
+
+    println("################## VM init ##################\n")
+    val vm = new GpuVM()
+    vm.setDebug(true)
+    vm.init(parser.getDataArrays)
+    vm.printAllRegisters()
+    vm.printMemory()
+
+    println("################## Run result ##################")
+    vm.run(parser.getInstructions)
+
+    vm.printAllRegisters()
+    vm.printMemory()
   }
 }
