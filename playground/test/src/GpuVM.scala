@@ -526,6 +526,9 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4, MemSize: Int = 256) {
       val inst = instructions(pc)
       if (debug) {
         println(s"*Debug current instruction: ${inst.getOp} ${inst.getArgs.mkString(", ")}")
+        printAllRegisters()
+        printMemory()
+        println("\n")
       }
       for (threadIdx <- 0 until NumOfThread) {
         def nextPc(): Int = {
@@ -555,9 +558,9 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4, MemSize: Int = 256) {
               val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
               val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
               nzp(threadIdx) = Seq(
-                registers(threadIdx)(s) > registers(threadIdx)(t),
-                registers(threadIdx)(s) == registers(threadIdx)(t),
-                registers(threadIdx)(s) < registers(threadIdx)(t)
+                registers(threadIdx)(s) < registers(threadIdx)(t),  // neg : idx 0
+                registers(threadIdx)(s) == registers(threadIdx)(t), // zero: idx 1
+                registers(threadIdx)(s) > registers(threadIdx)(t)   // pos : idx 2
               )
             }
             case Token.Add   => {
@@ -616,6 +619,13 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4, MemSize: Int = 256) {
         if (threadIdx == NumOfThread - 1) {
           pc = npc
         }
+        if (debug) {
+          println(s"Thread $threadIdx npc: $npc")
+          printRegister(threadIdx)
+          println(nzp(threadIdx))
+          printMemory()
+          println("\n")
+        }
       }
     }
   }
@@ -628,12 +638,39 @@ object GpuVMAddTest {
     val parser = new AsmParser(tokens)
     parser.parse()
 
-    println("################## Parse result ##################\n")
+    println("################## MatAddTest ##################")
+    println("################## Parse result ##################")
     parser.getDataArrays.foreach(println)
 
-    println("################## VM init ##################\n")
+    println("################## VM init ##################")
     val vm = new GpuVM()
     vm.setDebug(true)
+    vm.init(parser.getDataArrays)
+    vm.printAllRegisters()
+    vm.printMemory()
+
+    println("################## Run result ##################")
+    vm.run(parser.getInstructions)
+
+    vm.printAllRegisters()
+    vm.printMemory()
+  }
+}
+
+object GpuVMMulTest {
+  def main(args: Array[String]): Unit = {
+    val lexer  = new Lexer()
+    val tokens = lexer.tokenize(MatMulAsm.src)
+    val parser = new AsmParser(tokens)
+    parser.parse()
+
+    println("################## MatMulTest ##################")
+    println("################## Parse result ##################")
+    parser.getDataArrays.foreach(println)
+
+    println("################## VM init ##################")
+    val vm = new GpuVM()
+    // vm.setDebug(true)
     vm.init(parser.getDataArrays)
     vm.printAllRegisters()
     vm.printMemory()
