@@ -178,7 +178,7 @@ class Instruction(op: Token, args: Vector[RegType]) {
   }
 }
 
-class AsmParser(tokens: Vector[Token]) {
+class AsmParser() {
   val BlockIdxOffset  = 13
   val BlockDimOffset  = 14
   val ThreadIdxOffset = 15
@@ -188,6 +188,7 @@ class AsmParser(tokens: Vector[Token]) {
     this.debug = debug
   }
 
+  private var tokens:       Vector[Token]       = Vector.empty
   private var threadCount:  Int                 = 0
   private var dataArrays:   Vector[Vector[Int]] = Vector.empty
   private var instructions: Vector[Instruction] = Vector.empty
@@ -236,7 +237,8 @@ class AsmParser(tokens: Vector[Token]) {
     }
   }
 
-  def parse(): Unit = {
+  def parse(tokens: Vector[Token]): Unit = {
+    this.tokens = tokens
     while (!isEof()) {
       val tok = consume()
       if (debug) {
@@ -423,8 +425,8 @@ object MatMulAsm {
 object AsmParserTest1 {
   def main(args: Array[String]): Unit = {
     val lexer  = new Lexer()
-    val parser = new AsmParser(lexer.tokenize(MatAddAsm.src))
-    parser.parse()
+    val parser = new AsmParser()
+    parser.parse(lexer.tokenize(MatAddAsm.src))
 
     println("Thread count: " + parser.getThreadCount)
     println("\nData arrays:")
@@ -440,10 +442,10 @@ object AsmParserTest2 {
     val tokens = lexer.tokenize(MatMulAsm.src)
     tokens.foreach(println)
 
-    val parser = new AsmParser(tokens)
+    val parser = new AsmParser()
     println("\n################## Parse result ##################\n")
 
-    parser.parse()
+    parser.parse(tokens)
 
     println("Thread count: " + parser.getThreadCount)
     println("\nData arrays:")
@@ -635,8 +637,8 @@ object GpuVMAddTest {
   def main(args: Array[String]): Unit = {
     val lexer  = new Lexer()
     val tokens = lexer.tokenize(MatAddAsm.src)
-    val parser = new AsmParser(tokens)
-    parser.parse()
+    val parser = new AsmParser()
+    parser.parse(tokens)
 
     println("################## MatAddTest ##################")
     println("################## Parse result ##################")
@@ -661,8 +663,8 @@ object GpuVMMulTest {
   def main(args: Array[String]): Unit = {
     val lexer  = new Lexer()
     val tokens = lexer.tokenize(MatMulAsm.src)
-    val parser = new AsmParser(tokens)
-    parser.parse()
+    val parser = new AsmParser()
+    parser.parse(tokens)
 
     println("################## MatMulTest ##################")
     println("################## Parse result ##################")
