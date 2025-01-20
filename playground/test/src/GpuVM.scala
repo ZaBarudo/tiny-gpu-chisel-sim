@@ -365,7 +365,7 @@ object MatAddAsm {
         ADD R5, R2, R0                 ; addr(B[i]) = baseB + i
         LDR R5, R5                     ; load B[i] from global memory
 
-        ADD R6, R4, R15                 ; C[i] = A[i] + B[i]
+        ADD R6, R4, R5                 ; C[i] = A[i] + B[i]
 
         ADD R7, R3, R0                 ; addr(C[i]) = baseC + i
         STR R7, R6                     ; store C[i] in global memory
@@ -646,7 +646,7 @@ object GpuVMAddTest {
 
     println("################## VM init ##################")
     val vm = new GpuVM()
-    vm.setDebug(true)
+    // vm.setDebug(true)
     vm.init(parser.getDataArrays)
     vm.printAllRegisters()
     vm.printMemory()
@@ -656,6 +656,10 @@ object GpuVMAddTest {
 
     vm.printAllRegisters()
     vm.printMemory()
+
+    val ref = Seq( 0, 2, 4, 6, 8, 10, 12, 14)
+    assert(vm.getMemory.slice(16, 24) == ref)
+    println("**** GpuVMAddTest PASSED ****")
   }
 }
 
@@ -682,5 +686,225 @@ object GpuVMMulTest {
 
     vm.printAllRegisters()
     vm.printMemory()
+
+    
+    val ref = Seq( 7,   10 ,  15   ,22)
+    assert(vm.getMemory.slice(8, 12) == ref)
+    println("**** GpuVMMulTest PASSED ****")
+  }
+}
+
+class MachineCodeEmitter() {
+  val lexer  = new Lexer()
+  val parser = new AsmParser()
+  // parser.parse(lexer.tokenize(asm))
+  def asmToMachineCode(asm: String): Seq[Int] = {
+    val lexer        = new Lexer()
+    val parser       = new AsmParser()
+    parser.parse(lexer.tokenize(asm))
+    val instructions = parser.getInstructions
+
+    var machineCode = Seq.empty[Int]
+    for (inst <- instructions) {
+      inst.getOp match {
+        case Token.Nop   => {
+          machineCode = machineCode :+ 0
+        }
+        case Token.Brn   => {
+          val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+          machineCode = machineCode :+ ((1 << 12) | (1 << 11) | labelIdx)
+        }
+        case Token.Brz   => {
+          val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+          machineCode = machineCode :+ ((1 << 12) | (1 << 10) | labelIdx)
+        }
+        case Token.Brp   => {
+          val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+          machineCode = machineCode :+ ((1 << 12) | (1 << 9) | labelIdx)
+        }
+        case Token.Cmp   => {
+          val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+          val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+          machineCode = machineCode :+ ((1 << 13) | (s << 4) | t)
+        }
+        case Token.Add   => {
+          val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+          val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+          val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+          machineCode = machineCode :+ ((3 << 12) | (d << 8) | (s << 4) | t)
+        }
+        case Token.Sub   => {
+          val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+          val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+          val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+          machineCode = machineCode :+ ((4 << 12) | (d << 8) | (s << 4) | t)
+        }
+        case Token.Mul   => {
+          val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+          val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+          val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+          machineCode = machineCode :+ ((5 << 12) | (d << 8) | (s << 4) | t)
+        }
+        case Token.Div   => {
+          val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+          val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+          val t = inst.getArgs(2).asInstanceOf[RegType.Reg].value
+          machineCode = machineCode :+ ((6 << 12) | (d << 8) | (s << 4) | t)
+        }
+        case Token.Ldr   => {
+          val d = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+          val s = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+          machineCode = machineCode :+ ((7 << 12) | (d << 8) | (s << 4))
+        }
+        case Token.Str   => {
+          val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
+          val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
+          machineCode = machineCode :+ ((8 << 12) | (s << 4) | t)
+        }
+        case Token.Const => {
+          val (reg, imm) =
+            (inst.getArgs.head.asInstanceOf[RegType.Reg].value, inst.getArgs.last.asInstanceOf[RegType.Imm].value)
+          machineCode = machineCode :+ ((9 << 12) | (reg << 8) | imm)
+        }
+        case Token.Ret   => {
+          machineCode = machineCode :+ ((0xf << 12))
+        }
+        case _           => {
+          // throw new Exception(s"Unrecognized instruction: ${inst.getOp}")
+        }
+      }
+    }
+
+    machineCode
+  }
+}
+
+object MachineCodeEmitterTest {
+  def main(args: Array[String]): Unit = {
+    def verify(src: Seq[Int], ref: Seq[Int]): Boolean = {
+      if (src.length != ref.length) {
+        println(s"src.length != ref.length: ${src.length} != ${ref.length}")
+        return false
+      }
+      for (i <- 0 until src.length) {
+        if (src(i) != ref(i)) {
+          println(s"src($i) != ref($i): ${MachineCodeEmitter.toBinary(src(i))} != ${MachineCodeEmitter.toBinary(ref(i))}")
+          return false
+        }
+      }
+      return true
+    }
+
+    println("Testing MatAddAsm:")
+    val machineCode = new MachineCodeEmitter()
+    val addMC = machineCode.asmToMachineCode(MatAddAsm.src)
+    addMC.zipWithIndex.foreach { case (ins, idx) => println(f"$idx: ${MachineCodeEmitter.toBinary(ins)}") }
+
+    val addProgram = Seq(        
+        0b0101000011011110,
+        0b0011000000001111,
+        0b1001000100000000,
+        0b1001001000001000,
+        0b1001001100010000,
+        0b0011010000010000,
+        0b0111010001000000,
+        0b0011010100100000,
+        0b0111010101010000,
+        0b0011011001000101,
+        0b0011011100110000,
+        0b1000000001110110,
+        0b1111000000000000
+    )
+
+    assert(verify(addMC, addProgram))
+    println("**** MachineCodeEmitter MatAddTest  PASSED ****")
+
+    println("\n\nTesting MatMulAsm:")
+    val mulMC = machineCode.asmToMachineCode(MatMulAsm.src)
+    mulMC.zipWithIndex.foreach { case (ins, idx) => println(f"$idx: ${MachineCodeEmitter.toBinary(ins)}") }
+
+    val mulProgram = Seq(
+        0b0101000011011110, 
+        0b0011000000001111, 
+        0b1001000100000001, 
+        0b1001001000000010, 
+        0b1001001100000000, 
+        0b1001010000000100, 
+        0b1001010100001000, 
+        0b0110011000000010, 
+        0b0101011101100010, 
+        0b0100011100000111, 
+        0b1001100000000000, 
+        0b1001100100000000, 
+        0b0101101001100010, 
+        0b0011101010101001, 
+        0b0011101010100011, 
+        0b0111101010100000, 
+        0b0101101110010010, 
+        0b0011101110110111, 
+        0b0011101110110100, 
+        0b0111101110110000, 
+        0b0101110010101011, 
+        0b0011100010001100, 
+        0b0011100110010001, 
+        0b0010000010010010, 
+        0b0001100000001100, 
+        0b0011100101010000, 
+        0b1000000010011000, 
+        0b1111000000000000
+    )
+    assert(verify(mulMC, mulProgram))
+    println("**** MachineCodeEmitter MatMulTest  PASSED ****")  
+  }
+}
+
+object MachineCodeEmitter {
+  def toBinary(ins: Int): String = {
+    def toDigit4(i: Int) =
+      String.format("%4s", i.toBinaryString).replace(' ', '0')
+
+    val (p1, p2, p3, p4) = (
+      toDigit4((ins & 0xf000) >> 12),
+      toDigit4((ins & 0x0f00) >> 8),
+      toDigit4((ins & 0x00f0) >> 4),
+      toDigit4((ins & 0x000f))
+    )
+
+    f"$p1 $p2 $p3 $p4"
+  }
+
+  def emit(asm: String): Seq[Int] = {
+    val lexer  = new Lexer()
+    val parser = new AsmParser()
+    parser.parse(lexer.tokenize(asm))
+    
+    val emitter = new MachineCodeEmitter()
+    val machineCode = emitter.asmToMachineCode(asm)
+    machineCode
+  }
+
+  def main(args: Array[String]): Unit = {
+    if (args.length < 1 || args(0).isEmpty) {
+      println("Usage: Tiny-GPU MachineCodeEmitter <asm_file> [--idx: Print instructions with index]")
+      return
+    }
+
+    val asmFile = args(0)
+    val withIndex = args.length > 1 && args(1) == "--idx"
+
+    // Read the ASM file
+    val asm = scala.io.Source.fromFile(asmFile).getLines().mkString("\n")
+    
+    // Emit machine code
+    val machineCode = emit(asm)
+
+    // Print the machine code in binary format
+    if (withIndex) {
+      machineCode.zipWithIndex.foreach { case (ins, idx) => 
+        println(f"$idx%4d: ${toBinary(ins)}") 
+      }
+    } else {
+      machineCode.foreach(ins => println(MachineCodeEmitter.toBinary(ins)))
+    }
   }
 }
