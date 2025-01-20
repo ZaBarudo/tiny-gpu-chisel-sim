@@ -17,8 +17,17 @@ To generate Verilog:
 make verilog
 ```
 
+To generate machine code from assembly:
+```bash
+./assembler.sh <asm_file> [--idx]
+
+# example:
+./assembler.sh test/matadd.asm
+```
+
 ## A naive approach to test this GPU
 Implement software simulators (Model) for each hardware modules.
 Generate random inputs for both hardware modules and software models, and see if the outputs can be matched.
 Then combine software models like connecting each hardware modules to build models for those complex modules (e.g. Core and Gpu).
+
 
