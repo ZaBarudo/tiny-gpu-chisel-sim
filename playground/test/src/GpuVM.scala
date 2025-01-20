@@ -695,9 +695,6 @@ object GpuVMMulTest {
 }
 
 class MachineCodeEmitter() {
-  val lexer  = new Lexer()
-  val parser = new AsmParser()
-  // parser.parse(lexer.tokenize(asm))
   def asmToMachineCode(asm: String): Seq[Int] = {
     val lexer        = new Lexer()
     val parser       = new AsmParser()

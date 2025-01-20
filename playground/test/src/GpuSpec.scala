@@ -300,3 +300,57 @@ class GpuSpec extends AnyFreeSpec with Matchers {
     }
   }
 }
+
+class GpuBehaviorSpec extends AnyFreeSpec with Matchers {
+  "A behavior based GPU tester" - {
+    "The final memory state should match GpuVM's data memory" in {
+      val DataMemAddrBits       = 8
+      val DataMemDataBits       = 8
+      val DataMemNumChannels    = 4
+      val ProgramMemAddrBits    = 8
+      val ProgramMemDataBits    = 16
+      val ProgramMemNumChannels = 1
+      val NumCores              = 2
+      val ThreadsPerBlock       = 4
+
+      val asmFile = sys.env.get("GPU_ASM")
+      if (asmFile.isEmpty) {
+        println("Usage: Set the environment variable GPU_ASM to the path of the asm file.")
+        System.exit(1)
+      }
+
+      val lexer  = new Lexer()
+      val parser = new AsmParser()
+      val vm     = new GpuVM(NumCores, ThreadsPerBlock, 1 << DataMemAddrBits)
+
+      val asm = scala.io.Source.fromFile(asmFile.get).getLines().mkString("\n")
+      parser.parse(lexer.tokenize(asm))
+
+      vm.init(parser.getDataArrays)
+      vm.run(parser.getInstructions)
+
+      val program_mem = MachineCodeEmitter.emit(asm)
+
+      simulate(
+        new Gpu(
+          DataMemAddrBits,
+          DataMemDataBits,
+          DataMemNumChannels,
+          ProgramMemAddrBits,
+          ProgramMemDataBits,
+          ProgramMemNumChannels,
+          NumCores,
+          ThreadsPerBlock
+        )
+      ) { dut =>
+        // Reset the DUT
+        dut.reset.poke(true.B)
+        dut.clock.step()
+        dut.reset.poke(false.B)
+        dut.clock.step()
+
+        // TODO: Use DPI to initialize the memory
+      }
+    }
+  }
+}
