@@ -342,8 +342,8 @@ class AsmParser() {
 
   // Getter methods
   def getThreadCount:  Int                 = threadCount
-  def getDataArrays:   Vector[Vector[Int]] = dataArrays
-  def getInstructions: Vector[Instruction] = instructions
+  def getDataArrays:   Seq[Seq[Int]] = dataArrays
+  def getInstructions: Seq[Instruction] = instructions
 }
 
 object MatAddAsm {
@@ -501,7 +501,7 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4, MemSize: Int = 256) {
     println()
   }
 
-  def init(dataArrays: Vector[Vector[Int]]): Unit = {
+  def init(dataArrays: Seq[Seq[Int]]): Unit = {
     // Initialize blockIdx, blockDim, threadIdx for each thread's register file
     for (blockId <- 0 until NumCores) {
       for (threadId <- 0 until ThreadsPerBlock) {
@@ -523,7 +523,7 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4, MemSize: Int = 256) {
     }
   }
 
-  def run(instructions: Vector[Instruction]): Unit = {
+  def run(instructions: Seq[Instruction]): Unit = {
     while (pc < instructions.length) {
       val inst = instructions(pc)
       if (debug) {

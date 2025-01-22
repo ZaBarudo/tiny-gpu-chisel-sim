@@ -10,6 +10,7 @@ import org.scalatest.matchers.must.Matchers
 import core.CoreModel
 import controller.ControllerModel
 import dispatch.DispatchModel
+import scala.collection.mutable.ArrayBuffer
 
 class GpuModel(
   DataMemAddrBits:       Int = 8,
@@ -301,6 +302,55 @@ class GpuSpec extends AnyFreeSpec with Matchers {
   }
 }
 
+class ProgramMemoryMock(program: Seq[Int]) {
+  def step(dut: Gpu) = {
+    dut.io.program_mem_read_sender.zip(dut.io.program_mem_read_data).foreach { case (sender, reader) =>
+      val readValid = sender.valid.peek().litToBoolean
+      if (readValid) {
+        val addr = sender.bits.peekValue().asBigInt.toInt
+        reader.poke(program(addr).U)
+      }
+      sender.ready.poke(readValid.B)
+    }
+  }
+}
+
+class DataMemoryMock(data: Seq[Int], ProgramMemAddrBits: Int = 8) {
+  var mem = ArrayBuffer.fill(1 << ProgramMemAddrBits)(0)
+  for (i <- 0 until data.length) {
+    mem(i) = data(i)
+  }
+
+  def step(dut: Gpu) = {
+    dut.io.data_mem_read_sender.zip(dut.io.data_mem_read_data).foreach { case (sender, reader) =>
+      val readValid = sender.valid.peek().litToBoolean
+      // Debug print for read interface
+      println(
+        s"Read: valid=${sender.valid.peek().litToBoolean}, addr=${sender.bits.peekValue().asBigInt.toInt}"
+      )
+      if (readValid) {
+        val addr = sender.bits.peekValue().asBigInt.toInt
+        reader.poke(mem(addr).U)
+      }
+      sender.ready.poke(readValid.B)
+    }
+
+    dut.io.data_mem_write_sender.foreach { sender =>
+      val writeValid = sender.valid.peek().litToBoolean
+      // Debug print for write interface
+      println(s"Write: valid=${writeValid}, addr=${sender.bits.address.peekValue().asBigInt.toInt}")
+      if (writeValid) {
+        val addr = sender.bits.address.peekValue().asBigInt.toInt
+        val data = sender.bits.data.peekValue().asBigInt.toInt
+        mem(addr) = data
+      }
+      sender.ready.poke(writeValid.B)
+    }
+  }
+
+  def getMemory: ArrayBuffer[Int] = mem
+}
+
 class GpuBehaviorSpec extends AnyFreeSpec with Matchers {
   "A behavior based GPU tester" - {
     "The final memory state should match GpuVM's data memory" in {
@@ -313,23 +363,25 @@ class GpuBehaviorSpec extends AnyFreeSpec with Matchers {
       val NumCores              = 2
       val ThreadsPerBlock       = 4
 
-      val asmFile = sys.env.get("GPU_ASM")
-      if (asmFile.isEmpty) {
-        println("Usage: Set the environment variable GPU_ASM to the path of the asm file.")
-        System.exit(1)
-      }
+      // val asmFile = sys.env.get("GPU_ASM")
+      // if (asmFile.isEmpty) {
+      //   println("Usage: Set the environment variable GPU_ASM to the path of the asm file.")
+      //   System.exit(1)
+      // }
+      // val asm = scala.io.Source.fromFile(asmFile.get).getLines().mkString("\n")
+      val asm = MatAddAsm.src
 
       val lexer  = new Lexer()
       val parser = new AsmParser()
       val vm     = new GpuVM(NumCores, ThreadsPerBlock, 1 << DataMemAddrBits)
 
-      val asm = scala.io.Source.fromFile(asmFile.get).getLines().mkString("\n")
       parser.parse(lexer.tokenize(asm))
 
       vm.init(parser.getDataArrays)
       vm.run(parser.getInstructions)
 
-      val program_mem = MachineCodeEmitter.emit(asm)
+      val program_mem = new ProgramMemoryMock(MachineCodeEmitter.emit(asm))
+      val data_mem    = new DataMemoryMock(parser.getDataArrays.flatten)
 
       simulate(
         new Gpu(
@@ -342,14 +394,42 @@ class GpuBehaviorSpec extends AnyFreeSpec with Matchers {
           NumCores,
           ThreadsPerBlock
         )
+        // ,
+        // Seq(WriteVcdAnnotation)
       ) { dut =>
         // Reset the DUT
         dut.reset.poke(true.B)
         dut.clock.step()
         dut.reset.poke(false.B)
+        // dut.clock.step()
+
+        val thread = 8
+        dut.io.start.poke(true.B)
+        dut.io.device_control_write_enable.poke(true.B)
+        dut.io.device_control_data.poke(thread.U)
+        println(s"DUT io.done = ${dut.io.done.peek().litToBoolean}")
         dut.clock.step()
 
-        // TODO: Use DPI to initialize the memory
+        dut.io.device_control_write_enable.poke(false.B)
+
+        println(s"DUT io.done = ${dut.io.done.peek().litToBoolean}")
+        dut.clock.step()
+        println(s"DUT io.done = ${dut.io.done.peek().litToBoolean}")
+
+        var cnt = 0
+        while (!dut.io.done.peek().litToBoolean && cnt < 10) {
+          println("In while loop")
+          program_mem.step(dut)
+          data_mem.step(dut)
+          dut.clock.step()
+          cnt += 1
+        }
+
+        data_mem.getMemory.zip(vm.getMemory).zipWithIndex.foreach { case ((a, b), i) =>
+          if (a != b) {
+            println(s"Mismatch at index $i: $a != $b")
+          }
+        }
       }
     }
   }

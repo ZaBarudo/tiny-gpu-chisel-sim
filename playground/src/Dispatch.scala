@@ -23,6 +23,8 @@ class Dispatch(NumCores: Int = 2, ThreadsPerCore: Int = 4) extends Module {
     val done = Output(Bool())
   })
 
+  printf(cf"Dispatch: start = ${io.start}, thread_count = ${io.thread_count}, core_done = ${io.core_done}\n")
+
   // Calculate the total number of blocks based on total threads & threads per block
   val total_blocks = (io.thread_count + ThreadsPerCore.U - 1.U) / ThreadsPerCore.U
 
@@ -34,6 +36,10 @@ class Dispatch(NumCores: Int = 2, ThreadsPerCore: Int = 4) extends Module {
   val core_reset        = RegInit(VecInit(Seq.fill(NumCores)(true.B)))
   val core_block_id     = RegInit(VecInit(Seq.fill(NumCores)(0.U(8.W))))
   val core_thread_count = RegInit(VecInit(Seq.fill(NumCores)(ThreadsPerCore.U(ThreadCountWidth.W))))
+
+  printf(
+    cf"Dispatch outputs: core_start=${core_start}, core_reset=${core_reset}, core_block_id=${core_block_id}, core_thread_count=${core_thread_count}, done=${done}\n"
+  )
 
   // printf(cf"--total_blocks = $total_blocks, thread_count = ${io.thread_count}, blocks_done = $blocks_done\n")
 

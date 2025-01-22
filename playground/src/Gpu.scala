@@ -105,7 +105,9 @@ class Gpu(
 
   // Dispatcher inputs (3/3)
   val dispatcher = Module(new Dispatch(NumCores, ThreadsPerBlock))
-  dispatcher.io.start        := io.start
+  val start      = RegInit(false.B)
+  start                      := io.start
+  dispatcher.io.start        := start
   dispatcher.io.thread_count := dcr.io.thread_count
   for (i <- 0 until NumCores) {
     dispatcher.io.core_done(i) := coreOutputs(i).done
@@ -139,5 +141,6 @@ class Gpu(
 
   }
 
+  printf(cf"io.done = ${io.done}\n")
   io.done := dispatcher.io.done
 }
