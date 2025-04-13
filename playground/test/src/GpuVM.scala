@@ -15,6 +15,11 @@ object Token {
   case object Brn    extends Token
   case object Brz    extends Token
   case object Brp    extends Token
+  case object Brnz    extends Token
+  case object Brnp    extends Token
+  case object Brzp    extends Token
+  case object Brnzp    extends Token
+
   case object Cmp    extends Token
   case object Add    extends Token
   case object Sub    extends Token
@@ -87,6 +92,11 @@ class Lexer {
       case "brn"                                  => Brn
       case "brz"                                  => Brz
       case "brp"                                  => Brp
+      case "brnz"                                  => Brnz
+      case "brnp"                                 => Brnp
+      case "brzp"                                => Brzp
+      case "brnzp"                                => Brnzp
+      
       case "cmp"                                  => Cmp
       case "add"                                  => Add
       case "sub"                                  => Sub
@@ -117,7 +127,7 @@ class Lexer {
         }
       case num if num.matches("-?\\d+")           => Number(num.toInt)
       case label if label.endsWith(":")           => LabelDef(label.dropRight(1))
-      case use if use.matches("^[a-z_]*$")        => LabelUse(use)
+      case use if use.matches("^[a-z_0-9]*$")        => LabelUse(use)
       case other                                  => Invalid(other)
     }
   }
@@ -293,6 +303,34 @@ class AsmParser() {
             new Instruction(Token.Brp, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
           instructions = instructions :+ instruction
         }
+        case Token.Brnz            => {
+          val label       = consume()
+          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brnz expr")
+          val instruction =
+            new Instruction(Token.Brnz, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
+          instructions = instructions :+ instruction
+        }
+        case Token.Brnp            => {
+          val label       = consume()
+          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brnp expr")
+          val instruction =
+            new Instruction(Token.Brnp, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
+          instructions = instructions :+ instruction
+        }
+        case Token.Brzp            => {
+          val label       = consume()
+          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brzp expr")
+          val instruction =
+            new Instruction(Token.Brzp, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
+          instructions = instructions :+ instruction
+        }
+        case Token.Brnzp            => {
+          val label       = consume()
+          assert(label.isInstanceOf[Token.LabelUse], "Invalid Brnzp expr")
+          val instruction =
+            new Instruction(Token.Brnzp, Vector(RegType.LabelUse(label.asInstanceOf[Token.LabelUse].name)))
+          instructions = instructions :+ instruction
+        }
         case Token.LabelDef(name) => {
           labels = labels + (name -> instructions.length)
         }
@@ -330,7 +368,7 @@ class AsmParser() {
     // Turn labels into immediate values
     instructions
       .filter(inst =>
-        inst.getOp == Token.Brn || inst.getOp == Token.Brn || inst.getOp == Token.Brz || inst.getOp == Token.Brp
+        inst.getOp == Token.Brn || inst.getOp == Token.Brn || inst.getOp == Token.Brz || inst.getOp == Token.Brp || inst.getOp == Token.Brnz || inst.getOp == Token.Brnp || inst.getOp == Token.Brzp || inst.getOp == Token.Brnzp
       )
       .foreach { inst =>
         val label = inst.getArgs.head.asInstanceOf[RegType.LabelUse].name
@@ -556,6 +594,30 @@ class GpuVM(NumCores: Int = 2, ThreadsPerBlock: Int = 4, MemSize: Int = 256) {
                 return labelIdx
               }
             }
+            case Token.Brnz   => {
+              val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+              if (nzp(threadIdx)(0) || nzp(threadIdx)(1)) {
+                return labelIdx
+              }
+            }
+            case Token.Brnp   => {
+              val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+              if (nzp(threadIdx)(0) || nzp(threadIdx)(2)) {
+                return labelIdx
+              }
+            }
+            case Token.Brzp   => {
+              val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+              if (nzp(threadIdx)(1) || nzp(threadIdx)(2)) {
+                return labelIdx
+              }
+            }
+            case Token.Brnzp   => {
+              val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+              if (nzp(threadIdx)(0) || nzp(threadIdx)(1) || nzp(threadIdx)(2)) {
+                return labelIdx
+              }
+            }
             case Token.Cmp   => {
               val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
               val t = inst.getArgs(1).asInstanceOf[RegType.Reg].value
@@ -718,6 +780,22 @@ class MachineCodeEmitter() {
         case Token.Brp   => {
           val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
           machineCode = machineCode :+ ((1 << 12) | (1 << 9) | labelIdx)
+        }
+        case Token.Brnp   => {
+          val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+          machineCode = machineCode :+ ((1 << 12) | (1 << 11) | (1 << 9) | labelIdx)
+        }
+        case Token.Brzp   => {
+          val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+          machineCode = machineCode :+ ((1 << 12) | (1 << 10) | (1 << 9) | labelIdx)
+        }
+        case Token.Brnz   => {
+          val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+          machineCode = machineCode :+ ((1 << 12) | (1 << 11) | (1 << 10) | labelIdx)
+        }
+        case Token.Brnzp   => {
+          val labelIdx = inst.getArgs.head.asInstanceOf[RegType.Imm].value
+          machineCode = machineCode :+ ((1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | labelIdx)
         }
         case Token.Cmp   => {
           val s = inst.getArgs(0).asInstanceOf[RegType.Reg].value
