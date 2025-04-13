@@ -6,4 +6,4 @@
 OPTIONS=${@:2}
 
 # Run the MachineCodeEmitter using mill
-mill playground.test.runMain gpu.MachineCodeEmitter "$1" $OPTIONS
+./mill playground.test.runMain gpu.MachineCodeEmitter "$1" $OPTIONS

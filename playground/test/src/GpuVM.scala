@@ -92,9 +92,9 @@ class Lexer {
       case "brn"                                  => Brn
       case "brz"                                  => Brz
       case "brp"                                  => Brp
-      case "brnz"                                  => Brnz
+      case "brnz"                                 => Brnz
       case "brnp"                                 => Brnp
-      case "brzp"                                => Brzp
+      case "brzp"                                 => Brzp
       case "brnzp"                                => Brnzp
       
       case "cmp"                                  => Cmp
@@ -127,7 +127,8 @@ class Lexer {
         }
       case num if num.matches("-?\\d+")           => Number(num.toInt)
       case label if label.endsWith(":")           => LabelDef(label.dropRight(1))
-      case use if use.matches("^[a-z_0-9]*$")        => LabelUse(use)
+      case use if use.matches("^[a-zA-Z0-9_.]*$") => LabelUse(use)
+      // case use if use.matches("^[a-z_0-9]*$")        => LabelUse(use)
       case other                                  => Invalid(other)
     }
   }
